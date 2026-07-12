@@ -1,0 +1,77 @@
+version: v1.2.0
+
+dsn: postgres://kratos:kratos_dev@kratos-db:5432/kratos?sslmode=disable
+
+serve:
+  public:
+    base_url: http://localhost:4433/
+    cors:
+      enabled: true
+      allowed_origins:
+        - http://localhost:3000
+  admin:
+    base_url: http://kratos:4434/
+
+selfservice:
+  default_browser_return_url: http://localhost:3000/
+  allowed_return_urls:
+    - http://localhost:3000
+
+  methods:
+    password:
+      enabled: false
+    code:
+      enabled: true
+      passwordless_enabled: true
+    link:
+      enabled: true
+
+  flows:
+    registration:
+      ui_url: http://localhost:3000/register
+      after:
+        code:
+          hooks:
+            - hook: session
+
+    login:
+      ui_url: http://localhost:3000/login
+
+    verification:
+      enabled: true
+      ui_url: http://localhost:3000/verification
+      use: code
+
+    recovery:
+      enabled: true
+      ui_url: http://localhost:3000/recovery
+      use: code
+
+    settings:
+      ui_url: http://localhost:3000/settings
+
+    error:
+      ui_url: http://localhost:3000/error
+
+identity:
+  default_schema_id: borrower
+  schemas:
+    - id: borrower
+      url: file:///etc/config/kratos/identity.schema.json
+
+# SMS/OTP delivery: Kratos's `code` method needs a courier channel capable
+# of sending SMS, which isn't configured here. Wiring a real SMS courier
+# (via the platform's own SMSGateway protocol in libs/auth/protocols.py,
+# once a real MSG91/Kaleyra adapter exists — none does yet) is a follow-up,
+# not part of this pass. Without it, registration/login codes only appear
+# in Kratos's own logs — fine for local dev, not usable for real OTP delivery.
+
+log:
+  level: debug
+  format: text
+
+secrets:
+  cookie:
+    - ${KRATOS_COOKIE_SECRET:-dev-kratos-cookie-secret-change-in-prod}
+  cipher:
+    - ${KRATOS_CIPHER_SECRET:-dev-kratos-cipher-secret-32-bytes!}

@@ -208,7 +208,7 @@ class TestWebhookHMACVerification:
         from services.borrower_gateway import app as app_module
 
         monkeypatch.setattr(app_module, "INTEGRATION_MODE", "live")
-        monkeypatch.setattr(app_module, "FRAPPE_WEBHOOK_SECRET", "test-secret")
+        monkeypatch.setattr(app_module, "BACKOFFICE_WEBHOOK_SECRET", "test-secret")
 
         client = TestClient(app_module.app, raise_server_exceptions=False)
         response = client.post(

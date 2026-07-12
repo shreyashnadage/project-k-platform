@@ -1,0 +1,27 @@
+serve:
+  public:
+    port: 4444
+  admin:
+    port: 4445
+
+dsn: postgres://hydra:hydra_dev@hydra-db:5432/hydra?sslmode=disable
+
+urls:
+  self:
+    issuer: http://localhost:4444/
+  login: http://localhost:3000/login
+  consent: http://localhost:3000/consent
+  logout: http://localhost:3000/logout
+
+secrets:
+  system:
+    - ${HYDRA_SYSTEM_SECRET:-dev-hydra-system-secret-32-bytes}
+
+oidc:
+  subject_identifiers:
+    supported_types:
+      - public
+
+log:
+  level: debug
+  format: text

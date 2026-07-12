@@ -87,6 +87,7 @@ class BorrowerGatewayService:
             amount_requested=app.get("amount_requested"),
             amount_sanctioned=app.get("amount_sanctioned"),
             lender_id=app.get("lender_id"),
+            vendor_gstin=app.get("vendor_gstin"),
             created_at=app.get("created_at"),
             updated_at=app.get("updated_at"),
         )
@@ -192,6 +193,7 @@ class AsyncDBGatewayService:
                 amount_requested=record.amount_requested,
                 amount_sanctioned=record.amount_sanctioned,
                 lender_id=record.selected_lender_id,
+                vendor_gstin=record.vendor_gstin,
                 created_at=record.created_at,
                 updated_at=record.updated_at,
             )

@@ -54,6 +54,10 @@ class LoanApplicationStatus(BaseModel):
     amount_requested: Decimal | None = None
     amount_sanctioned: Decimal | None = None
     lender_id: str | None = None
+    vendor_gstin: str | None = Field(
+        default=None,
+        description="Owning vendor's GSTIN — used for ownership enforcement, not returned to unrelated callers.",
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

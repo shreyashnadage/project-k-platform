@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from temporalio.client import Client as TemporalClient
 
+from libs.auth.factory import get_borrower_verifier
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIdMiddleware, DPDPRBACMiddleware
 from libs.common.rate_limit import RateLimitMiddleware
@@ -38,7 +39,15 @@ init_tracing(service_name="borrower-gateway")
 logger = structlog.get_logger()
 
 INTEGRATION_MODE = os.environ.get("INTEGRATION_MODE", "")
-FRAPPE_WEBHOOK_SECRET = os.environ.get("FRAPPE_WEBHOOK_SECRET", "")
+BACKOFFICE_WEBHOOK_SECRET = os.environ.get("BACKOFFICE_WEBHOOK_SECRET", "")
+
+# Borrower ownership enforcement — off by default because it requires a live
+# Kratos+Hydra deployment to issue vendors real tokens (see Phase 3 of the
+# RBAC/role-UIs plan and docs/borrower-ciam-contract.md). Flip on once that
+# infrastructure is deployed; until then /loans/* stays open, matching
+# today's behavior, rather than locking borrowers out with no way to
+# authenticate.
+BORROWER_AUTH_ENABLED = os.environ.get("BORROWER_AUTH_ENABLED", "false").lower() == "true"
 
 app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.2.0")
 app.add_middleware(CorrelationIdMiddleware)
@@ -70,8 +79,40 @@ async def get_temporal_client() -> TemporalClient:
 # ─── Internal Borrower API ──────────────────────────────────────
 
 
+async def _get_borrower_claims(request: Request):
+    """Resolve the calling vendor's identity from a Hydra-issued Bearer token.
+
+    Returns None when BORROWER_AUTH_ENABLED=false (today's default — no
+    Kratos/Hydra deployed yet). Once enabled, requires a valid token and
+    returns its TokenClaims so callers can enforce ownership.
+    """
+    if not BORROWER_AUTH_ENABLED:
+        return None
+
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header required")
+
+    from libs.auth.adapters.kratos import AuthenticationError
+
+    try:
+        token = auth_header.removeprefix("Bearer ")
+        return await get_borrower_verifier().verify(token)
+    except AuthenticationError as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+
+
 @app.post("/loans/apply", response_model=LoanApplicationResponse)
-async def apply_for_loan(request: LoanApplicationRequest) -> LoanApplicationResponse:
+async def apply_for_loan(
+    request: LoanApplicationRequest, http_request: Request
+) -> LoanApplicationResponse:
+    claims = await _get_borrower_claims(http_request)
+    if claims is not None and claims.raw.get("gstin") != request.vendor_gstin:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot submit a loan application for a different vendor GSTIN.",
+        )
+
     response = gateway_service.initiate_application(request)
 
     try:
@@ -101,14 +142,23 @@ class ApplicationStatusRequest(BaseModel):
 
 
 @app.post("/loans/status", response_model=LoanApplicationStatus)
-def get_loan_status(request: ApplicationStatusRequest) -> LoanApplicationStatus:
+async def get_loan_status(
+    request: ApplicationStatusRequest, http_request: Request
+) -> LoanApplicationStatus:
+    claims = await _get_borrower_claims(http_request)
+
     try:
-        return gateway_service.get_status(request.application_id)
+        status = gateway_service.get_status(request.application_id)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
+    if claims is not None and claims.raw.get("gstin") != status.vendor_gstin:
+        raise HTTPException(status_code=403, detail="Not your application.")
 
-# ─── Invoice Capture (ERP/Frappe Connector) ───────────────────────
+    return status
+
+
+# ─── Invoice Capture (ERP Connector) ───────────────────────
 
 
 @app.post("/invoices/captured", response_model=InvoiceCapturedResponse)
@@ -118,15 +168,15 @@ async def capture_invoice(
     """Receive invoice notification from ERP connector (ERPNext/Frappe).
 
     Verified via inbound HMAC signature (X-Platform-Signature header, same
-    FRAPPE_WEBHOOK_SECRET and scheme used for outbound delivery in
-    services/frappe_sync/webhook_client.py). Skipped only in sandbox mode.
+    BACKOFFICE_WEBHOOK_SECRET and scheme used for outbound delivery in
+    services/backoffice_sync/webhook_client.py). Skipped only in sandbox mode.
     """
     import uuid
 
     if INTEGRATION_MODE != "sandbox":
         signature = http_request.headers.get("x-platform-signature")
         body = await http_request.body()
-        if not verify_hmac_signature(FRAPPE_WEBHOOK_SECRET, body, signature):
+        if not verify_hmac_signature(BACKOFFICE_WEBHOOK_SECRET, body, signature):
             raise HTTPException(status_code=401, detail="Invalid or missing webhook signature")
 
     invoice_id = uuid.uuid4()
@@ -335,6 +385,10 @@ async def get_brand() -> dict:
     return {
         "name": b.identity.name,
         "tagline": b.identity.tagline,
+        "back_office": {
+            "name": b.back_office.name,
+            "short_name": b.back_office.short_name,
+        },
         "colors": b.colors.model_dump(),
         "typography": {
             "font_ui": b.typography.font_ui,
