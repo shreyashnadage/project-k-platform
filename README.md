@@ -147,8 +147,45 @@ uv run pytest tests/ --cov=libs --cov=services
 | 1 | VDP Wedge (ERPNext, Kind 1 attestation) | Done |
 | 2 | Trust Graph (dbt, derived attributes) | Done |
 | 3 | LA on OCEN (Temporal, Zen rules, AA, OCEN network protocol) | Done |
+| 3.5 | Production deploy (AWS, systemd, nginx, PWA, Frappe connector) | Done |
 | 4 | DDP (Verifiable credentials, dashboards) | Planned |
 | 5 | Company (Formal registration) | Planned |
+
+## Deployment
+
+The platform runs on AWS (ap-south-1) with systemd services behind nginx.
+
+```bash
+# Deploy to a fresh Ubuntu 22.04 instance
+scp -i tally-sync-key.pem infra/deploy/setup.sh ubuntu@<IP>:/tmp/
+ssh -i tally-sync-key.pem ubuntu@<IP> "sudo bash /tmp/setup.sh"
+```
+
+Services:
+- `ocen-gateway.service` — Borrower Gateway API (port 8000)
+- `ocen-worker.service` — Temporal worker
+- `ocen-pwa.service` — Borrower PWA / Next.js (port 3000)
+- nginx reverse proxy on port 80 (PWA at `/`, API at `/loans/`, `/invoices/`, `/health`)
+
+## Borrower PWA
+
+Separate repo: [project-k-borrower-app](https://github.com/shreyashnadage/project-k-borrower-app)
+
+- Next.js 16 PWA with vernacular-first UX (Marathi/Hindi/English)
+- Ory Kratos auth with mock provider for development (`NEXT_PUBLIC_AUTH_MOCK=true`)
+- Connects to the platform API via nginx proxy at the same origin
+
+## Frappe/ERPNext Connector
+
+Separate repo: [project-k-ocen-connector](https://github.com/shreyashnadage/project-k-ocen-connector)
+
+A Frappe custom app that bridges ERPNext with the OCEN platform:
+- Auto-captures invoices from ERPNext to the platform via `/invoices/captured`
+- Triggers loan applications from Purchase Invoice doctype
+- Syncs loan status back to ERPNext custom fields
+- Scheduled job polls for status updates
+
+Install: `bench get-app https://github.com/shreyashnadage/project-k-ocen-connector`
 
 ## Documentation
 
