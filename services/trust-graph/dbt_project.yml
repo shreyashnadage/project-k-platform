@@ -1,0 +1,15 @@
+name: 'trust_graph'
+version: '1.0.0'
+
+profile: 'trust_graph'
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  trust_graph:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

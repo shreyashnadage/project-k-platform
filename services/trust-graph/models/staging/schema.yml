@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: public
+    tables:
+      - name: trade_events
+        description: "Raw trade events consumed from Redpanda"
+        columns:
+          - name: event_id
+            tests: [unique, not_null]
+          - name: event_type
+            tests: [not_null]
+
+models:
+  - name: stg_trade_events
+    description: "Cleaned trade events with extracted payload fields"
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+
+  - name: stg_loan_applications
+    description: "Loan applications with origination and repayment data"
+    columns:
+      - name: loan_application_id
+        tests: [unique, not_null]

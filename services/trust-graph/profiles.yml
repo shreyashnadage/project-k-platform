@@ -1,0 +1,12 @@
+trust_graph:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: 5433
+      user: ocen
+      password: ocen_dev
+      dbname: ocen_graph
+      schema: trust_graph
+      threads: 4

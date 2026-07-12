@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: trust_scores
+    description: "Trust scores per vendor-anchor pair — the core moat"
+    columns:
+      - name: vendor_gstin
+        tests: [not_null]
+      - name: anchor_gstin
+        tests: [not_null]
+      - name: trust_score
+        description: "Composite score 0-100 based on repayment, volume, timeliness"
+
+  - name: vendor_profiles
+    description: "Aggregated vendor profiles across all anchors"
+    columns:
+      - name: vendor_gstin
+        tests: [unique, not_null]
+      - name: avg_trust_score
+        description: "Average trust score across all anchor relationships"
