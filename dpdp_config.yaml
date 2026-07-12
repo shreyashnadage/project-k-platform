@@ -1,0 +1,71 @@
+# DPDP Act 2023 Compliance Configuration
+# All business policy lives here — zero code changes to extend.
+# Override any value with DPDP_* environment variables.
+
+mode: library
+
+consent:
+  hard_block: true
+  required_purposes:
+    - loan_origination
+    - kind1_attestation
+
+encryption:
+  key_env_var: DPDP_ENCRYPTION_KEY
+  blind_index_key_env_var: DPDP_BLIND_INDEX_KEY
+
+retention:
+  - data_category: loan_application
+    retention_days: 2555
+    legal_basis: "RBI Master Direction on KYC — 7 years post closure"
+  - data_category: aa_financial_data
+    retention_days: 365
+    legal_basis: "AA consent scope expiry"
+  - data_category: vendor_contact
+    retention_days: 1095
+    legal_basis: "Purpose fulfilled — 3 years post last activity"
+  - data_category: consent_record
+    retention_days: 2555
+    legal_basis: "Audit trail — 7 years"
+  - data_category: decision_receipt
+    retention_days: 3650
+    legal_basis: "DDP audit trail — 10 years"
+
+rbac:
+  - path_prefix: /ops/hold
+    allowed_roles: [platform-admin, operations]
+  - path_prefix: /ops/release
+    allowed_roles: [platform-admin, operations]
+  - path_prefix: /ops/flag
+    allowed_roles: [platform-admin, operations]
+  - path_prefix: /ops/escalate
+    allowed_roles: [platform-admin, operations]
+  - path_prefix: /ops/applications
+    allowed_roles: [platform-admin, operations, lender-viewer]
+  - path_prefix: /ops/vendor/invite
+    allowed_roles: [platform-admin, anchor-manager]
+  - path_prefix: /ops/anchor/onboard
+    allowed_roles: [platform-admin, anchor-manager]
+  - path_prefix: /dpdp/rights
+    allowed_roles: [platform-admin]
+  - path_prefix: /dpdp/consent
+    allowed_roles: [platform-admin]
+
+audit:
+  topic: dpdp.audit-log.v1
+  bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:19092}
+
+breach:
+  detection_rules:
+    - rule: bulk_access
+      threshold: 100
+      window_minutes: 5
+    - rule: failed_auth
+      threshold: 20
+      window_minutes: 10
+    - rule: export_without_dsr
+      threshold: 1
+      window_minutes: 1
+  notification:
+    dpbi_endpoint: ${DPDP_DPBI_NOTIFICATION_URL:-}
+    notify_within_hours: 72

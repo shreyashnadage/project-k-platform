@@ -21,6 +21,8 @@ from temporalio.common import RetryPolicy
 # implementations live in activities.py and are registered on the worker.
 with workflow.unsafe.imports_passed_through():
     from services.la_orchestrator.activities import (
+        CheckDPDPConsentInput,
+        DSRInput,
         EvaluateDecisionInput,
         FetchAADataInput,
         SubmitOcenLoanRequestInput,
@@ -29,6 +31,18 @@ with workflow.unsafe.imports_passed_through():
 
 
 # ─── Workflow Input / Output ────────────────────────────────
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class LoanOriginationInput:
+    """Structured input for the loan origination workflow."""
+
+    loan_application_id: str
+    data_principal_id: str = ""
+    vendor_gstin: str = ""
 
 
 @workflow.defn
@@ -64,15 +78,25 @@ class LoanOriginationWorkflow:
         self._ops_hold_reason = ""
 
     @workflow.run
-    async def run(self, loan_application_id: str) -> dict:
+    async def run(self, input: LoanOriginationInput | str) -> dict:
         """Execute the origination pipeline.
 
         Args:
-            loan_application_id: UUID of the loan application
+            input: LoanOriginationInput or bare loan_application_id (legacy)
 
         Returns:
             Final status dict with outcome and metadata
         """
+        # Support both new structured input and legacy bare string
+        if isinstance(input, str):
+            loan_application_id = input
+            data_principal_id = ""
+            vendor_gstin = ""
+        else:
+            loan_application_id = input.loan_application_id
+            data_principal_id = input.data_principal_id
+            vendor_gstin = input.vendor_gstin
+
         retry = RetryPolicy(
             initial_interval=timedelta(seconds=1),
             maximum_interval=timedelta(seconds=30),
@@ -81,6 +105,26 @@ class LoanOriginationWorkflow:
         )
         activity_timeout = timedelta(seconds=60)
         aa_timeout = timedelta(minutes=10)  # AA callback can take time
+
+        # ── DPDP Consent Gate (hard block) ───────────────────
+        if data_principal_id:
+            consent_result = await workflow.execute_activity(
+                "check_dpdp_consent",
+                CheckDPDPConsentInput(
+                    loan_application_id=loan_application_id,
+                    data_principal_id=data_principal_id,
+                    purposes=["loan_origination", "kind1_attestation"],
+                ),
+                start_to_close_timeout=activity_timeout,
+                retry_policy=retry,
+            )
+
+            if not consent_result["allowed"]:
+                return {
+                    "status": "rejected",
+                    "gate": "dpdp_consent",
+                    "reason": consent_result.get("reason", "consent_not_granted"),
+                }
 
         # ── D0: Kind 1 Gate ──────────────────────────────────
         d0_result = await workflow.execute_activity(
@@ -104,7 +148,11 @@ class LoanOriginationWorkflow:
         # ── AA Consent + Data Fetch ──────────────────────────
         aa_result = await workflow.execute_activity(
             "fetch_aa_data",
-            FetchAADataInput(loan_application_id=loan_application_id),
+            FetchAADataInput(
+                loan_application_id=loan_application_id,
+                vendor_gstin=vendor_gstin,
+                data_principal_id=data_principal_id,
+            ),
             start_to_close_timeout=aa_timeout,
             retry_policy=RetryPolicy(maximum_attempts=2),
             heartbeat_timeout=timedelta(minutes=2),
@@ -250,3 +298,72 @@ class LoanOriginationWorkflow:
         # Post-offer steps (acceptance, e-sign, disbursement, repayment
         # tracking) will be added as the workflow matures. Each is an
         # activity with its own idempotency and timeout handling.
+
+
+# ─── DPDP: Data Subject Rights Fulfillment Workflow ───────────
+
+
+@dataclass
+class DSRWorkflowInput:
+    """Input for the DSR fulfillment workflow."""
+
+    request_id: str
+    data_principal_id: str
+    right_type: str  # access, erasure, correction, grievance, nomination
+
+
+@workflow.defn
+class DSRFulfillmentWorkflow:
+    """Fulfills Data Subject Rights requests per DPDP Act 2023 Section 11-14.
+
+    Routes to the appropriate activity based on right_type.
+    SLA: 72 hours per DPDP Board guidelines.
+    """
+
+    @workflow.run
+    async def run(self, input: DSRWorkflowInput) -> dict:
+        retry = RetryPolicy(
+            initial_interval=timedelta(seconds=2),
+            maximum_interval=timedelta(seconds=60),
+            maximum_attempts=3,
+        )
+        activity_timeout = timedelta(minutes=5)
+
+        dsr_input = DSRInput(
+            request_id=input.request_id,
+            data_principal_id=input.data_principal_id,
+            right_type=input.right_type,
+        )
+
+        if input.right_type == "access":
+            result = await workflow.execute_activity(
+                "execute_access_right",
+                dsr_input,
+                start_to_close_timeout=activity_timeout,
+                retry_policy=retry,
+            )
+        elif input.right_type == "erasure":
+            result = await workflow.execute_activity(
+                "execute_erasure_right",
+                dsr_input,
+                start_to_close_timeout=activity_timeout,
+                retry_policy=retry,
+            )
+        elif input.right_type == "correction":
+            result = await workflow.execute_activity(
+                "execute_correction_right",
+                dsr_input,
+                start_to_close_timeout=activity_timeout,
+                retry_policy=retry,
+            )
+        else:
+            result = {
+                "status": "unsupported",
+                "reason": f"right_type '{input.right_type}' not implemented",
+            }
+
+        return {
+            "request_id": input.request_id,
+            "right_type": input.right_type,
+            "result": result,
+        }

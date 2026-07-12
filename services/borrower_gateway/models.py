@@ -6,6 +6,8 @@ from datetime import datetime  # noqa: TC003
 from decimal import Decimal  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
+from dpdp_core.classification.field_meta import dpdp_field
+from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTier
 from pydantic import BaseModel, Field
 
 
@@ -13,8 +15,22 @@ class LoanApplicationRequest(BaseModel):
     """Request from borrower (vendor) to initiate a loan application."""
 
     invoice_id: UUID
-    vendor_gstin: str = Field(..., min_length=15, max_length=15)
-    anchor_gstin: str = Field(..., min_length=15, max_length=15)
+    vendor_gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
+    anchor_gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
     amount_requested: Decimal = Field(..., gt=0)
     idempotency_key: str | None = None
 
@@ -57,10 +73,31 @@ class LoanOfferResponse(BaseModel):
 class InvoiceCapturedRequest(BaseModel):
     """Invoice captured from ERP (ERPNext/Frappe connector)."""
 
-    irn: str = Field(..., min_length=64, max_length=64)
+    irn: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.KIND1_ATTESTATION, DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=2555,
+        min_length=64,
+        max_length=64,
+    )
     invoice_number: str
-    vendor_gstin: str = Field(..., min_length=15, max_length=15)
-    anchor_gstin: str = Field(..., min_length=15, max_length=15)
+    vendor_gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
+    anchor_gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
     amount: Decimal = Field(..., gt=0)
     invoice_date: str
     due_date: str

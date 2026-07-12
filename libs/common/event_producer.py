@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 import orjson
 import structlog
 from confluent_kafka import Producer
+from dpdp_core.pii.event_scanner import scan_payload
 
 if TYPE_CHECKING:
     from libs.common.events import TradeEvent
@@ -44,9 +45,13 @@ class EventProducer:
         """Publish a trade event to Redpanda.
 
         Key: {entity_type}:{entity_id} — ensures ordering per entity.
+        Payload is scanned for PII before emission — any detected PII
+        is replaced with <REDACTED:ENTITY_TYPE> markers.
         """
+        event_data = event.model_dump(mode="json")
+        event_data["payload"] = scan_payload(event_data.get("payload", {}))
         key = event.topic_key().encode("utf-8")
-        value = orjson.dumps(event.model_dump(mode="json"))
+        value = orjson.dumps(event_data)
 
         self._producer.produce(
             topic=TRADE_EVENTS_TOPIC,

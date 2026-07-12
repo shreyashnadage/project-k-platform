@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from temporalio.client import Client as TemporalClient
 
 from libs.common.logging import configure_logging
-from libs.common.middleware import CorrelationIdMiddleware
+from libs.common.middleware import CorrelationIdMiddleware, DPDPRBACMiddleware
 from libs.common.rate_limit import RateLimitMiddleware
 from libs.common.tracing import init_tracing
 from libs.ocen_client.jws.signer import OcenJWSSigner
@@ -37,6 +37,7 @@ logger = structlog.get_logger()
 
 app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.2.0")
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(DPDPRBACMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(ops_router)
 app.include_router(vendors_router)
@@ -69,9 +70,16 @@ async def apply_for_loan(request: LoanApplicationRequest) -> LoanApplicationResp
 
     try:
         temporal = await get_temporal_client()
+        from services.la_orchestrator.workflows import LoanOriginationInput
+
+        workflow_input = LoanOriginationInput(
+            loan_application_id=str(response.application_id),
+            data_principal_id=request.vendor_gstin,
+            vendor_gstin=request.vendor_gstin,
+        )
         await temporal.start_workflow(
             "LoanOriginationWorkflow",
-            str(response.application_id),
+            workflow_input,
             id=response.workflow_id,
             task_queue=os.environ.get("TEMPORAL_TASK_QUEUE", "loan-origination"),
         )
@@ -292,6 +300,27 @@ async def set_repayment_plan_response(
         trace_id=response.metadata.trace_id,
         timestamp=response.metadata.timestamp,
     )
+
+
+@app.get("/brand")
+async def get_brand() -> dict:
+    """Brand config for PWA/frontend theming. Reads from brand.yaml."""
+    from brand.brand import load_brand
+
+    b = load_brand()
+    return {
+        "name": b.identity.name,
+        "tagline": b.identity.tagline,
+        "colors": b.colors.model_dump(),
+        "typography": {
+            "font_ui": b.typography.font_ui,
+            "font_mono": b.typography.font_mono,
+            "google_fonts_url": b.typography.google_fonts_url,
+            "weights": b.typography.weights,
+            "sizes": b.typography.sizes,
+        },
+        "shape": b.shape.model_dump(),
+    }
 
 
 @app.get("/health")

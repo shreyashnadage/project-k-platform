@@ -1,0 +1,90 @@
+# Brand Configuration — Single Source of Truth
+# Change name, logo, and colors here. All downstream theming derives from this file.
+# This is a working title — the name and logo may change before launch.
+
+identity:
+  name: "Munimco"
+  tagline: "Anchor-led vendor receivables financing"
+  # Logo files in brand/assets/ — replace these when rebranding
+  logo_full: "munimco_logo_2048.png"
+  logo_full_svg: "munimco_logo_linked.svg"
+  logo_icon: "munimco_m_icon_cream_512.png"
+  logo_icon_svg: "munimco_m_icon_cream.svg"
+
+colors:
+  # Brand core
+  cream: "#F5F0E8"           # Page bg (light), sidebar alt, marketing/portal
+  navy: "#0D1B2A"            # Primary text, primary buttons, navbar
+  navy_muted: "#1B263B"      # Cards/surfaces (dark mode), secondary navy
+  navy_elevated: "#152A40"   # Hover states, muted panels (dark)
+  teal: "#2A9D8F"            # Links, secondary CTA, active nav, success
+  teal_dark: "#3DB8A9"       # Accent on dark backgrounds (AA contrast)
+  teal_accessible: "#1F7A6E" # Small teal text on cream (AA compliant)
+  saffron: "#E07A3D"         # Badges, warnings, highlights — use sparingly
+  amber: "#D4A373"           # Dividers, chart secondary, warm accent
+  error: "#C45C4A"           # Errors/destructive (not bright red)
+
+  # Light mode neutrals
+  surface: "#FFFFFF"         # Cards, modals, form fields on cream
+  surface_muted: "#FAF7F2"   # Zebra rows, section bg
+  border: "#E8E2D8"          # All hairline borders (khata/register metaphor)
+  border_strong: "#C9C0B4"   # Input borders, table grid
+  text_secondary: "#415A77"  # Labels, captions, table headers
+  text_tertiary: "#6B7C93"   # Placeholders, hints
+
+  # Dark mode neutrals
+  bg_dark: "#0D1B2A"         # Desk background
+  surface_dark: "#1B263B"    # Form background, cards
+  border_dark: "#2D3E50"     # Dividers
+  text_on_dark: "#F5F0E8"    # Primary text on dark
+  text_secondary_dark: "#A8B8C8"  # Muted text on dark
+
+  # Semantic (maps to Frappe indicators)
+  semantic_success: "#2A9D8F"   # teal — Approved, Paid, Disbursed
+  semantic_warning: "#E07A3D"   # saffron — Pending, Overdue soft
+  semantic_danger: "#C45C4A"    # error — Rejected, Written Off
+  semantic_info: "#415A77"      # text_secondary — Draft, Info
+
+  # Chart series order
+  chart_series:
+    - "#0D1B2A"
+    - "#2A9D8F"
+    - "#D4A373"
+    - "#E07A3D"
+    - "#415A77"
+
+typography:
+  # UI sans — Plus Jakarta Sans primary, Outfit fallback
+  font_ui: '"Plus Jakarta Sans", "Outfit", system-ui, sans-serif'
+  # Monospace — for currency, GSTIN, account codes
+  font_mono: '"JetBrains Mono", ui-monospace, monospace'
+  # Google Fonts URL (for Frappe head injection / PWA)
+  google_fonts_url: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+
+  weights:
+    body: 400
+    label: 500
+    section_title: 600
+    kpi: 700
+
+  sizes:
+    page_title: "18px"
+    section_head: "15px"
+    body: "14px"
+    table_dense: "13px"
+    caption: "12px"
+
+shape:
+  radius_sm: "6px"     # Tags, indicators
+  radius_md: "10px"    # Buttons, inputs, dropdowns
+  radius_lg: "14px"    # Cards, workspace blocks
+  radius_xl: "20px"    # Dialogs, loan summary panels
+  border_width: "1px"
+  active_nav_bar: "3px"  # Left bar teal for active sidebar item
+
+  shadow_sm: "0 1px 2px rgba(13, 27, 42, 0.06)"
+  shadow_md: "0 4px 12px rgba(13, 27, 42, 0.08)"
+
+  focus_ring: "0 0 0 2px rgba(42, 157, 143, 0.25)"
+  focus_ring_color: "#2A9D8F"
+  focus_ring_offset: "2px"

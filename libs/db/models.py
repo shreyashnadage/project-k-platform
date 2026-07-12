@@ -7,9 +7,11 @@ from datetime import UTC, datetime
 from decimal import Decimal  # noqa: TC003
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Index,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -43,6 +45,13 @@ class LoanApplicationRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    # DPDP Phase 2: encrypted PII columns (dual-write during transition)
+    vendor_gstin_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    vendor_gstin_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    anchor_gstin_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    anchor_gstin_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    aa_consent_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     __table_args__ = (
         Index("ix_loan_app_vendor", "vendor_gstin"),
@@ -89,6 +98,11 @@ class AnchorRecord(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
+    # DPDP Phase 2: encrypted PII columns (dual-write during transition)
+    name_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    gstin_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    gstin_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
 
 class VendorRecord(Base):
     __tablename__ = "vendors"
@@ -101,6 +115,13 @@ class VendorRecord(Base):
     onboarded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    # DPDP Phase 2: encrypted PII columns (dual-write during transition)
+    name_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    gstin_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    gstin_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    udyam_number_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    udyam_number_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class IdempotencyRecord(Base):
@@ -115,3 +136,61 @@ class IdempotencyRecord(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC).replace(hour=23, minute=59, second=59),
     )
+
+
+# ─── DPDP Compliance Tables ──────────────────────────────────────────
+
+
+class ConsentRecord(Base):
+    __tablename__ = "consent_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    data_principal_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    consent_domain: Mapped[str] = mapped_column(String(30), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(50), nullable=False)
+    granted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    granted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consent_text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    collection_method: Mapped[str] = mapped_column(String(30), nullable=False)
+    aa_consent_id: Mapped[str | None] = mapped_column(String(255))
+    loan_application_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_consent_principal_purpose", "data_principal_id", "purpose"),
+    )
+
+
+class DSRRequestRecord(Base):
+    __tablename__ = "dsr_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    data_principal_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    right_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), server_default="submitted")
+    request_data: Mapped[dict | None] = mapped_column(JSON, server_default="{}")
+    response_data: Mapped[dict | None] = mapped_column(JSON)
+    workflow_id: Mapped[str | None] = mapped_column(String(100))
+    sla_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DPDPAuditLog(Base):
+    __tablename__ = "dpdp_audit_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    data_principal_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    actor_id: Mapped[str | None] = mapped_column(String(100))
+    resource_type: Mapped[str | None] = mapped_column(String(50))
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    details: Mapped[dict | None] = mapped_column(JSON, server_default="{}")
+    correlation_id: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

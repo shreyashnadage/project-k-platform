@@ -10,6 +10,7 @@ import uuid
 from contextvars import ContextVar
 
 import structlog
+from dpdp_core.pii.log_redactor import pii_redaction_processor
 
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
@@ -62,6 +63,7 @@ def configure_logging(*, json_output: bool = True, log_level: str = "INFO") -> N
     structlog.configure(
         processors=[
             *shared_processors,
+            pii_redaction_processor,
             structlog.processors.EventRenamer("msg"),
             renderer,
         ],

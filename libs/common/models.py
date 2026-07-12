@@ -12,6 +12,8 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
+from dpdp_core.classification.field_meta import dpdp_field
+from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTier
 from pydantic import BaseModel, Field
 
 # ─── Enums ──────────────────────────────────────────────────
@@ -76,8 +78,11 @@ class UdyamCategory(enum.StrEnum):
 class GSTIN(BaseModel):
     """A validated GST Identification Number."""
 
-    value: str = Field(
-        ...,
+    value: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
         min_length=15,
         max_length=15,
         pattern=r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$",
@@ -88,10 +93,16 @@ class AnchorProfile(BaseModel):
     """An anchor (large buyer / corporate)."""
 
     id: UUID = Field(default_factory=uuid4)
-    name: str
+    name: str = dpdp_field(
+        category=DPDPCategory.NAME,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=2555,
+        default=...,
+    )
     gstin: GSTIN
     sector: str | None = None
-    region: str | None = None  # e.g. "kolhapur", "pune", "aurangabad"
+    region: str | None = None
     repayment_routing_active: bool = False
     onboarded_at: datetime | None = None
 
@@ -100,9 +111,21 @@ class VendorProfile(BaseModel):
     """A vendor (MSME supplier / potential borrower)."""
 
     id: UUID = Field(default_factory=uuid4)
-    name: str
+    name: str = dpdp_field(
+        category=DPDPCategory.NAME,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=2555,
+        default=...,
+    )
     gstin: GSTIN
-    udyam_number: str | None = None
+    udyam_number: str | None = dpdp_field(
+        category=DPDPCategory.GOVERNMENT_ID,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=2555,
+        default=None,
+    )
     udyam_category: UdyamCategory | None = None
     anchor_ids: list[UUID] = Field(default_factory=list)
     onboarded_at: datetime | None = None
@@ -115,8 +138,11 @@ class Invoice(BaseModel):
     """An invoice with e-invoicing and IMS attestation status."""
 
     id: UUID = Field(default_factory=uuid4)
-    irn: str = Field(
-        ...,
+    irn: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.KIND1_ATTESTATION, DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=2555,
         min_length=64,
         max_length=64,
         description="Invoice Reference Number — 64-char SHA-256 hash",
