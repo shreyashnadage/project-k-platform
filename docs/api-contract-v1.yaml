@@ -1,0 +1,1968 @@
+openapi: 3.1.0
+info:
+  title: Borrower Gateway - OCEN LA
+  version: 0.2.0
+paths:
+  /ops/hold:
+    post:
+      tags:
+      - ops
+      summary: Ops Hold
+      description: Hold an application before OCEN submission via Temporal signal.
+      operationId: ops_hold_ops_hold_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsHoldRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/release:
+    post:
+      tags:
+      - ops
+      summary: Ops Release
+      description: Release a held application via Temporal signal.
+      operationId: ops_release_ops_release_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsReleaseRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/flag:
+    post:
+      tags:
+      - ops
+      summary: Ops Flag
+      description: Add an ops annotation/flag to an application record.
+      operationId: ops_flag_ops_flag_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsFlagRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/escalate:
+    post:
+      tags:
+      - ops
+      summary: Ops Escalate
+      description: Escalate to collections (post-disbursement).
+      operationId: ops_escalate_ops_escalate_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpsEscalateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/applications/active:
+    get:
+      tags:
+      - ops
+      summary: List Active Applications
+      description: List non-terminal applications for reconciliation.
+      operationId: list_active_applications_ops_applications_active_get
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsApplicationList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/applications/{application_id}:
+    get:
+      tags:
+      - ops
+      summary: Get Application Detail
+      description: Full application detail for ops view.
+      operationId: get_application_detail_ops_applications__application_id__get
+      parameters:
+      - name: application_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Application Id
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsApplicationDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/vendor/invite:
+    post:
+      tags:
+      - ops
+      summary: Invite Vendor
+      description: Create a pending vendor record and generate invite token.
+      operationId: invite_vendor_ops_vendor_invite_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorInviteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorInviteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /ops/anchor/onboard:
+    post:
+      tags:
+      - ops
+      summary: Onboard Anchor
+      description: Create an anchor record in the platform.
+      operationId: onboard_anchor_ops_anchor_onboard_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnchorOnboardRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnchorOnboardResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /vendors/verify-udyam:
+    post:
+      tags:
+      - vendors
+      summary: Verify Udyam
+      description: Verify Udyam number and return enterprise details for auto-population.
+      operationId: verify_udyam_vendors_verify_udyam_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UdyamVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UdyamVerifyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /vendors/register:
+    post:
+      tags:
+      - vendors
+      summary: Register Vendor
+      description: 'Vendor self-registration from PWA. No auth required (public endpoint).
+
+
+        If udyam_number is provided, auto-verifies and populates enterprise data.'
+      operationId: register_vendor_vendors_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorRegisterRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorRegisterResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /vendors/activate:
+    post:
+      tags:
+      - vendors
+      summary: Activate Vendor
+      description: Complete an invited vendor's registration (from PWA invite flow).
+      operationId: activate_vendor_vendors_activate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorActivateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorRegisterResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /dpdp/rights/submit:
+    post:
+      tags:
+      - dpdp
+      summary: Submit Dsr
+      description: Submit a Data Subject Rights request (access, erasure, correction).
+      operationId: submit_dsr_dpdp_rights_submit_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DSRSubmitRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DSRSubmitResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /dpdp/rights/{request_id}:
+    get:
+      tags:
+      - dpdp
+      summary: Get Dsr Status
+      description: Check the status of a DSR request.
+      operationId: get_dsr_status_dpdp_rights__request_id__get
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Request Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DSRStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /dpdp/consent/{data_principal_id}:
+    get:
+      tags:
+      - dpdp
+      summary: Get Consent Status
+      description: Get all consent records for a data principal.
+      operationId: get_consent_status_dpdp_consent__data_principal_id__get
+      parameters:
+      - name: data_principal_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Data Principal Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /loans/apply:
+    post:
+      summary: Apply For Loan
+      operationId: apply_for_loan_loans_apply_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoanApplicationRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanApplicationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /loans/status:
+    post:
+      summary: Get Loan Status
+      operationId: get_loan_status_loans_status_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationStatusRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoanApplicationStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /invoices/captured:
+    post:
+      summary: Capture Invoice
+      description: 'Receive invoice notification from ERP connector (ERPNext/Frappe).
+
+
+        Verified via inbound HMAC signature (X-Platform-Signature header, same
+
+        BACKOFFICE_WEBHOOK_SECRET and scheme used for outbound delivery in
+
+        services/backoffice_sync/webhook_client.py). Skipped only in sandbox mode.'
+      operationId: capture_invoice_invoices_captured_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceCapturedRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceCapturedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/createLoanResponse:
+    post:
+      summary: Create Loan Response
+      description: "OCEN async callback \u2014 lender posts loan decision back to\
+        \ LA."
+      operationId: create_loan_response_v4_0_0alpha_loanApplications_createLoanResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/generateOffersResponse:
+    post:
+      summary: Generate Offers Response
+      description: "OCEN callback \u2014 lender posts generated offers back to LA."
+      operationId: generate_offers_response_v4_0_0alpha_loanApplications_generateOffersResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/setOffersResponse:
+    post:
+      summary: Set Offers Response
+      description: "OCEN callback \u2014 lender confirms selected offer."
+      operationId: set_offers_response_v4_0_0alpha_loanApplications_setOffersResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/loanAgreementResponse:
+    post:
+      summary: Loan Agreement Response
+      description: "OCEN callback \u2014 lender posts loan agreement for e-sign."
+      operationId: loan_agreement_response_v4_0_0alpha_loanApplications_loanAgreementResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/grantLoanResponse:
+    post:
+      summary: Grant Loan Response
+      description: "OCEN callback \u2014 lender confirms loan grant."
+      operationId: grant_loan_response_v4_0_0alpha_loanApplications_grantLoanResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/triggerDisbursementResponse:
+    post:
+      summary: Trigger Disbursement Response
+      description: "OCEN callback \u2014 lender confirms disbursement."
+      operationId: trigger_disbursement_response_v4_0_0alpha_loanApplications_triggerDisbursementResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/triggerRepaymentResponse:
+    post:
+      summary: Trigger Repayment Response
+      description: "OCEN callback \u2014 repayment event from lender."
+      operationId: trigger_repayment_response_v4_0_0alpha_loanApplications_triggerRepaymentResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v4.0.0alpha/loanApplications/setRepaymentPlanResponse:
+    post:
+      summary: Set Repayment Plan Response
+      description: "OCEN callback \u2014 lender sets repayment plan."
+      operationId: set_repayment_plan_response_v4_0_0alpha_loanApplications_setRepaymentPlanResponse_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLoanApplicationResponse'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcenAckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /brand:
+    get:
+      summary: Get Brand
+      description: Brand config for PWA/frontend theming. Reads from brand.yaml.
+      operationId: get_brand_brand_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Get Brand Brand Get
+  /health:
+    get:
+      summary: Health
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  anyOf:
+                  - type: string
+                  - type: boolean
+                type: object
+                title: Response Health Health Get
+components:
+  schemas:
+    Address:
+      properties:
+        hba:
+          type: string
+          title: Hba
+          default: ''
+        srl:
+          type: string
+          title: Srl
+          default: ''
+        landmark:
+          type: string
+          title: Landmark
+          default: ''
+        als:
+          type: string
+          title: Als
+          default: ''
+        vtc:
+          type: string
+          title: Vtc
+          default: ''
+        pinCode:
+          type: string
+          title: Pincode
+          default: ''
+        po:
+          type: string
+          title: Po
+          default: ''
+        district:
+          type: string
+          title: District
+          default: ''
+        state:
+          type: string
+          title: State
+          default: ''
+        country:
+          type: string
+          title: Country
+          default: India
+      type: object
+      title: Address
+      description: Contact address.
+    AnchorOnboardRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+          dpdp_category: name
+          dpdp_purposes:
+          - loan_origination
+          - ops_management
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        sector:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sector
+        region:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Region
+        onboarded_by:
+          type: string
+          title: Onboarded By
+      type: object
+      required:
+      - name
+      - gstin
+      - onboarded_by
+      title: AnchorOnboardRequest
+      description: Ops onboards an anchor.
+    AnchorOnboardResponse:
+      properties:
+        anchor_id:
+          type: string
+          format: uuid
+          title: Anchor Id
+        status:
+          type: string
+          title: Status
+          default: onboarded
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - anchor_id
+      - message
+      title: AnchorOnboardResponse
+      description: Response after anchor onboarding.
+    ApplicationStatusRequest:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+      type: object
+      required:
+      - application_id
+      title: ApplicationStatusRequest
+    Borrower:
+      properties:
+        primaryId:
+          type: string
+          title: Primaryid
+        primaryIdType:
+          type: string
+          title: Primaryidtype
+          default: PAN
+        name:
+          type: string
+          title: Name
+          default: ''
+        category:
+          type: string
+          title: Category
+          default: ORGANIZATION
+        contactDetails:
+          items:
+            $ref: '#/components/schemas/ContactDetail'
+          type: array
+          title: Contactdetails
+        additionalIdentifiers:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Additionalidentifiers
+        documents:
+          items:
+            $ref: '#/components/schemas/Document'
+          type: array
+          title: Documents
+        aaIdentifier:
+          type: string
+          title: Aaidentifier
+          default: ''
+      type: object
+      required:
+      - primaryId
+      title: Borrower
+      description: Borrower (vendor) in the OCEN loan application.
+    Charge:
+      properties:
+        chargeType:
+          type: string
+          title: Chargetype
+          default: FIXED_AMOUNT
+        data:
+          additionalProperties: true
+          type: object
+          title: Data
+      type: object
+      title: Charge
+      description: Fee/charge structure.
+    ConsentStatusResponse:
+      properties:
+        data_principal_id:
+          type: string
+          title: Data Principal Id
+        consents:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Consents
+      type: object
+      required:
+      - data_principal_id
+      - consents
+      title: ConsentStatusResponse
+    ContactDetail:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: PRIMARY
+        description:
+          type: string
+          title: Description
+          default: ''
+        phone:
+          type: string
+          title: Phone
+          default: ''
+        email:
+          type: string
+          title: Email
+          default: ''
+        address:
+          anyOf:
+          - $ref: '#/components/schemas/Address'
+          - type: 'null'
+      type: object
+      title: ContactDetail
+      description: Borrower/applicant contact information.
+    CreateLoanApplicationResponse:
+      properties:
+        metadata:
+          $ref: '#/components/schemas/MetaData'
+        productData:
+          $ref: '#/components/schemas/ProductData'
+        response:
+          $ref: '#/components/schemas/ResponseStatus'
+        loanApplications:
+          items:
+            $ref: '#/components/schemas/LoanApplication'
+          type: array
+          title: Loanapplications
+      type: object
+      required:
+      - metadata
+      - productData
+      - response
+      - loanApplications
+      title: CreateLoanApplicationResponse
+      description: "OCEN CreateLoanApplicationResponse \u2014 Lender sends back to\
+        \ LA async.\n\nEndpoint: POST /v4.0.0alpha/loanApplications/createLoanResponse"
+    DSRStatusResponse:
+      properties:
+        request_id:
+          type: string
+          title: Request Id
+        status:
+          type: string
+          title: Status
+        right_type:
+          type: string
+          title: Right Type
+        sla_deadline:
+          type: string
+          title: Sla Deadline
+        completed_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Completed At
+      type: object
+      required:
+      - request_id
+      - status
+      - right_type
+      - sla_deadline
+      title: DSRStatusResponse
+    DSRSubmitRequest:
+      properties:
+        data_principal_id:
+          type: string
+          title: Data Principal Id
+        right_type:
+          type: string
+          title: Right Type
+      type: object
+      required:
+      - data_principal_id
+      - right_type
+      title: DSRSubmitRequest
+    DSRSubmitResponse:
+      properties:
+        request_id:
+          type: string
+          title: Request Id
+        status:
+          type: string
+          title: Status
+        sla_deadline:
+          type: string
+          title: Sla Deadline
+        workflow_id:
+          type: string
+          title: Workflow Id
+      type: object
+      required:
+      - request_id
+      - status
+      - sla_deadline
+      - workflow_id
+      title: DSRSubmitResponse
+    Document:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: GSTN
+        sourceIdentifier:
+          type: string
+          title: Sourceidentifier
+          default: ''
+        format:
+          type: string
+          title: Format
+          default: JSON
+        reference:
+          type: string
+          title: Reference
+          default: ''
+        type:
+          type: string
+          title: Type
+          default: GST_PROFILE
+        isDataInline:
+          type: boolean
+          title: Isdatainline
+          default: true
+        data:
+          type: string
+          title: Data
+          default: ''
+      type: object
+      title: Document
+      description: Pledged or supporting document.
+    Duration:
+      properties:
+        duration:
+          type: integer
+          title: Duration
+          default: 0
+        unit:
+          type: string
+          title: Unit
+          default: MONTH
+      type: object
+      title: Duration
+      description: Time duration.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InvoiceCapturedRequest:
+      properties:
+        irn:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Irn
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - kind1_attestation
+          - loan_origination
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        invoice_number:
+          type: string
+          title: Invoice Number
+        vendor_gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Vendor Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        anchor_gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Anchor Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        amount:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount
+        invoice_date:
+          type: string
+          title: Invoice Date
+        due_date:
+          type: string
+          title: Due Date
+        currency:
+          type: string
+          title: Currency
+          default: INR
+        participant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Participant Id
+      type: object
+      required:
+      - irn
+      - invoice_number
+      - vendor_gstin
+      - anchor_gstin
+      - amount
+      - invoice_date
+      - due_date
+      title: InvoiceCapturedRequest
+      description: Invoice captured from ERP (ERPNext/Frappe connector).
+    InvoiceCapturedResponse:
+      properties:
+        invoice_id:
+          type: string
+          format: uuid
+          title: Invoice Id
+        irn:
+          type: string
+          title: Irn
+        status:
+          type: string
+          title: Status
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - invoice_id
+      - irn
+      - status
+      - message
+      title: InvoiceCapturedResponse
+      description: Response after invoice is captured.
+    LoanApplication:
+      properties:
+        loanApplicationId:
+          type: string
+          title: Loanapplicationid
+        loanApplicationStatus:
+          type: string
+          title: Loanapplicationstatus
+          default: CREATED
+        createdDate:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Createddate
+        borrower:
+          anyOf:
+          - $ref: '#/components/schemas/Borrower'
+          - type: 'null'
+        guarantors:
+          items:
+            $ref: '#/components/schemas/Borrower'
+          type: array
+          title: Guarantors
+        applicants:
+          items:
+            $ref: '#/components/schemas/Borrower'
+          type: array
+          title: Applicants
+        pledgedDocuments:
+          items:
+            $ref: '#/components/schemas/Document'
+          type: array
+          title: Pledgeddocuments
+        terms:
+          anyOf:
+          - $ref: '#/components/schemas/LoanTerms'
+          - type: 'null'
+        description:
+          type: string
+          title: Description
+          default: ''
+      type: object
+      required:
+      - loanApplicationId
+      title: LoanApplication
+      description: A single loan application in the OCEN batch.
+    LoanApplicationRequest:
+      properties:
+        invoice_id:
+          type: string
+          format: uuid
+          title: Invoice Id
+        vendor_gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Vendor Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        anchor_gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Anchor Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        amount_requested:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Amount Requested
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+      type: object
+      required:
+      - invoice_id
+      - vendor_gstin
+      - anchor_gstin
+      - amount_requested
+      title: LoanApplicationRequest
+      description: Request from borrower (vendor) to initiate a loan application.
+    LoanApplicationResponse:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        invoice_id:
+          type: string
+          format: uuid
+          title: Invoice Id
+        status:
+          type: string
+          title: Status
+        workflow_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Workflow Id
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - application_id
+      - invoice_id
+      - status
+      - message
+      title: LoanApplicationResponse
+      description: Response after loan application is initiated.
+    LoanApplicationStatus:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        status:
+          type: string
+          title: Status
+        current_gate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Gate
+        amount_requested:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Amount Requested
+        amount_sanctioned:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Amount Sanctioned
+        lender_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Lender Id
+        vendor_gstin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vendor Gstin
+          description: "Owning vendor's GSTIN \u2014 used for ownership enforcement,\
+            \ not returned to unrelated callers."
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - application_id
+      - status
+      title: LoanApplicationStatus
+      description: Current status of a loan application.
+    LoanTerms:
+      properties:
+        requestedAmount:
+          type: number
+          title: Requestedamount
+          default: 0
+        currency:
+          type: string
+          title: Currency
+          default: INR
+        sanctionedAmount:
+          type: number
+          title: Sanctionedamount
+          default: 0
+        netDisbursedAmount:
+          type: number
+          title: Netdisbursedamount
+          default: 0
+        interestType:
+          type: string
+          title: Interesttype
+          default: FIXED
+        interestRate:
+          type: number
+          title: Interestrate
+          default: 0
+        annualPercentageRate:
+          type: number
+          title: Annualpercentagerate
+          default: 0
+        tenure:
+          anyOf:
+          - $ref: '#/components/schemas/Duration'
+          - type: 'null'
+        coolingOffPeriod:
+          anyOf:
+          - $ref: '#/components/schemas/Duration'
+          - type: 'null'
+        charges:
+          additionalProperties:
+            $ref: '#/components/schemas/Charge'
+          type: object
+          title: Charges
+      type: object
+      title: LoanTerms
+      description: Loan terms and conditions.
+    MetaData:
+      properties:
+        version:
+          type: string
+          title: Version
+          default: 4.0.0alpha
+        originatorOrgId:
+          type: string
+          title: Originatororgid
+        originatorParticipantId:
+          type: string
+          title: Originatorparticipantid
+        timestamp:
+          type: string
+          title: Timestamp
+          default: ''
+        traceId:
+          type: string
+          title: Traceid
+        requestId:
+          type: string
+          title: Requestid
+      type: object
+      required:
+      - originatorOrgId
+      - originatorParticipantId
+      - traceId
+      - requestId
+      title: MetaData
+      description: "OCEN request/response metadata \u2014 present in every network\
+        \ transaction."
+    OcenAckResponse:
+      properties:
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        traceId:
+          type: string
+          title: Traceid
+        timestamp:
+          type: string
+          title: Timestamp
+          default: ''
+      type: object
+      required:
+      - traceId
+      title: OcenAckResponse
+      description: Synchronous ACK response for every OCEN network transaction.
+    OpsApplicationDetail:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        vendor_gstin:
+          type: string
+          title: Vendor Gstin
+          default: ''
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - ops_management
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        anchor_gstin:
+          type: string
+          title: Anchor Gstin
+          default: ''
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - ops_management
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        amount_requested:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Amount Requested
+        status:
+          type: string
+          title: Status
+        current_gate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Gate
+        workflow_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Workflow Id
+        ops_hold:
+          type: boolean
+          title: Ops Hold
+          default: false
+        ops_flags:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Ops Flags
+        offer_data:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Offer Data
+        amount_sanctioned:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Amount Sanctioned
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - application_id
+      - status
+      title: OpsApplicationDetail
+      description: Full application detail for ops reconciliation.
+    OpsApplicationList:
+      properties:
+        applications:
+          items:
+            $ref: '#/components/schemas/OpsApplicationDetail'
+          type: array
+          title: Applications
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - applications
+      - total
+      title: OpsApplicationList
+      description: List of active applications for reconciliation.
+    OpsCommandResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        action:
+          type: string
+          title: Action
+        message:
+          type: string
+          title: Message
+        timestamp:
+          type: string
+          format: date-time
+          title: Timestamp
+      type: object
+      required:
+      - success
+      - application_id
+      - action
+      - message
+      title: OpsCommandResponse
+      description: Standard response for ops commands.
+    OpsEscalateRequest:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        reason:
+          type: string
+          title: Reason
+        escalated_by:
+          type: string
+          title: Escalated By
+      type: object
+      required:
+      - application_id
+      - reason
+      - escalated_by
+      title: OpsEscalateRequest
+      description: Escalate to collections (post-disbursement only).
+    OpsFlagRequest:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        flag_type:
+          type: string
+          title: Flag Type
+          description: e.g. suspicious, manual_review, priority
+        note:
+          type: string
+          maxLength: 1000
+          title: Note
+        flagged_by:
+          type: string
+          title: Flagged By
+      type: object
+      required:
+      - application_id
+      - flag_type
+      - note
+      - flagged_by
+      title: OpsFlagRequest
+      description: Add an ops annotation/flag to an application.
+    OpsHoldRequest:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 3
+          title: Reason
+        held_by:
+          type: string
+          title: Held By
+          description: Munimco Ops user who initiated the hold
+      type: object
+      required:
+      - application_id
+      - reason
+      - held_by
+      title: OpsHoldRequest
+      description: Hold an application before OCEN submission.
+    OpsReleaseRequest:
+      properties:
+        application_id:
+          type: string
+          format: uuid
+          title: Application Id
+        released_by:
+          type: string
+          title: Released By
+      type: object
+      required:
+      - application_id
+      - released_by
+      title: OpsReleaseRequest
+      description: Release a held application.
+    ProductData:
+      properties:
+        productId:
+          type: string
+          title: Productid
+        productNetworkId:
+          type: string
+          title: Productnetworkid
+      type: object
+      required:
+      - productId
+      - productNetworkId
+      title: ProductData
+      description: OCEN product network identification.
+    ResponseStatus:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: SUCCESS
+        responseDetail:
+          type: string
+          title: Responsedetail
+          default: ''
+      type: object
+      title: ResponseStatus
+      description: Response status in async callback.
+    UdyamVerifyRequest:
+      properties:
+        udyam_number:
+          type: string
+          pattern: ^UDYAM-[A-Z]{2}-\d{2}-\d{7}$
+          title: Udyam Number
+      type: object
+      required:
+      - udyam_number
+      title: UdyamVerifyRequest
+      description: Request to verify a Udyam number and retrieve enterprise details.
+    UdyamVerifyResponse:
+      properties:
+        valid:
+          type: boolean
+          title: Valid
+        udyam_number:
+          type: string
+          title: Udyam Number
+        enterprise_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Enterprise Name
+        enterprise_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Enterprise Type
+        major_activity:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Major Activity
+        organization_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Organization Type
+        date_of_incorporation:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date Of Incorporation
+        state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+        district:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: District
+        city:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: City
+        pincode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pincode
+        address:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+        nic_codes:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Nic Codes
+        owner_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Owner Name
+      type: object
+      required:
+      - valid
+      - udyam_number
+      title: UdyamVerifyResponse
+      description: Udyam verification result with auto-populated enterprise data.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VendorActivateRequest:
+      properties:
+        invite_token:
+          type: string
+          title: Invite Token
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        udyam_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Udyam Number
+        udyam_category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Udyam Category
+      type: object
+      required:
+      - invite_token
+      title: VendorActivateRequest
+      description: Complete an invited vendor's registration.
+    VendorInviteRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+          dpdp_category: name
+          dpdp_purposes:
+          - loan_origination
+          - ops_management
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        phone:
+          type: string
+          maxLength: 13
+          minLength: 10
+          title: Phone
+          dpdp_category: contact
+          dpdp_purposes:
+          - loan_origination
+          - ops_management
+          dpdp_retention_days: 1095
+          dpdp_tier: standard
+        udyam_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Udyam Number
+          dpdp_category: government_id
+          dpdp_purposes:
+          - loan_origination
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        invited_by:
+          type: string
+          title: Invited By
+      type: object
+      required:
+      - name
+      - gstin
+      - phone
+      - invited_by
+      title: VendorInviteRequest
+      description: Ops invites a vendor (creates pending record, returns invite token).
+    VendorInviteResponse:
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          title: Vendor Id
+        invite_token:
+          type: string
+          title: Invite Token
+        invite_link:
+          type: string
+          title: Invite Link
+        status:
+          type: string
+          title: Status
+          default: invited
+      type: object
+      required:
+      - vendor_id
+      - invite_token
+      - invite_link
+      title: VendorInviteResponse
+      description: Response with invite token for the vendor.
+    VendorRegisterRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+          dpdp_category: name
+          dpdp_purposes:
+          - loan_origination
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        gstin:
+          type: string
+          maxLength: 15
+          minLength: 15
+          title: Gstin
+          dpdp_category: financial_identifier
+          dpdp_purposes:
+          - loan_origination
+          - kind1_attestation
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        phone:
+          type: string
+          maxLength: 13
+          minLength: 10
+          title: Phone
+          dpdp_category: contact
+          dpdp_purposes:
+          - loan_origination
+          dpdp_retention_days: 1095
+          dpdp_tier: standard
+        udyam_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Udyam Number
+          dpdp_category: government_id
+          dpdp_purposes:
+          - loan_origination
+          dpdp_retention_days: 2555
+          dpdp_tier: standard
+        udyam_category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Udyam Category
+      type: object
+      required:
+      - name
+      - gstin
+      - phone
+      title: VendorRegisterRequest
+      description: Vendor self-registration from PWA.
+    VendorRegisterResponse:
+      properties:
+        vendor_id:
+          type: string
+          format: uuid
+          title: Vendor Id
+        status:
+          type: string
+          title: Status
+          default: active
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - vendor_id
+      - message
+      title: VendorRegisterResponse
+      description: Response after vendor self-registration.
