@@ -20,7 +20,7 @@ from libs.ocen_client.models.journey import (
 from libs.ocen_client.network_client import OcenNetworkClient
 
 from .models import LoanApplicationRequest, LoanApplicationResponse, LoanApplicationStatus
-from .service import BorrowerGatewayService
+from .service import get_gateway_service
 
 configure_logging(json_output=True)
 logger = structlog.get_logger()
@@ -28,7 +28,7 @@ logger = structlog.get_logger()
 app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.1.0")
 app.add_middleware(CorrelationIdMiddleware)
 
-gateway_service = BorrowerGatewayService()
+gateway_service = get_gateway_service()
 ocen_client = OcenNetworkClient()
 jws_signer = OcenJWSSigner()
 
@@ -262,5 +262,13 @@ async def set_repayment_plan_response(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "borrower-gateway"}
+async def health() -> dict[str, str | bool]:
+    checks: dict[str, bool] = {}
+
+    try:
+        temporal = await get_temporal_client()
+        checks["temporal"] = temporal is not None
+    except Exception:
+        checks["temporal"] = False
+
+    return {"status": "ok", "service": "borrower-gateway", **checks}
