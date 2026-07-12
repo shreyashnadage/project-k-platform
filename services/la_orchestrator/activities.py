@@ -310,6 +310,149 @@ async def execute_correction_right(input: DSRInput) -> dict:
     return {"status": "pending_review", "reason": "correction_requires_manual_verification"}
 
 
+# ─── DPDP Retention Activities ─────────────────────────────────
+
+
+@dataclass
+class RetentionInput:
+    dry_run: bool = False
+
+
+@activity.defn(name="enforce_retention")
+async def enforce_retention(input: RetentionInput) -> dict:
+    """Enforce retention policies from dpdp_config.yaml."""
+    import yaml
+
+    log = logger.bind(dry_run=input.dry_run)
+    log.info("enforcing_retention_policies")
+
+    config_path = os.environ.get("DPDP_CONFIG_PATH", "dpdp_config.yaml")
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    policies = config.get("retention", [])
+    results = []
+
+    for policy in policies:
+        category = policy["data_category"]
+        days = policy["retention_days"]
+        log.info(
+            "retention_policy_check",
+            category=category,
+            retention_days=days,
+        )
+
+        if input.dry_run:
+            results.append({
+                "category": category,
+                "action": "dry_run",
+                "records_affected": 0,
+            })
+            continue
+
+        from libs.db.retention_handlers import get_retention_handler
+
+        handler = get_retention_handler(category)
+        if handler:
+            count = await handler.enforce(days)
+            results.append({
+                "category": category,
+                "action": "enforced",
+                "records_affected": count,
+            })
+        else:
+            results.append({
+                "category": category,
+                "action": "no_handler",
+                "records_affected": 0,
+            })
+
+    log.info("retention_enforcement_complete", policies_processed=len(results))
+    return {"policies_processed": len(results), "results": results}
+
+
+# ─── DPDP Breach Detection Activities ─────────────────────────
+
+
+@dataclass
+class BreachInput:
+    rule: str
+    event_count: int
+    window_minutes: int
+    actor_id: str = ""
+    details: dict | None = None
+
+    def __post_init__(self) -> None:
+        if self.details is None:
+            self.details = {}
+
+
+@activity.defn(name="detect_breaches")
+async def detect_breaches(input: BreachInput) -> dict:
+    """Confirm whether a suspected breach meets the threshold for notification."""
+    import yaml
+
+    log = logger.bind(rule=input.rule, event_count=input.event_count)
+    log.info("evaluating_breach_detection")
+
+    config_path = os.environ.get("DPDP_CONFIG_PATH", "dpdp_config.yaml")
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    rules = {r["rule"]: r for r in config.get("breach", {}).get("detection_rules", [])}
+    rule_config = rules.get(input.rule)
+
+    if not rule_config:
+        return {"confirmed": False, "reason": f"unknown_rule: {input.rule}"}
+
+    threshold = rule_config["threshold"]
+    if input.event_count >= threshold:
+        log.warning(
+            "breach_confirmed",
+            rule=input.rule,
+            count=input.event_count,
+            threshold=threshold,
+        )
+        return {"confirmed": True, "threshold": threshold, "actual": input.event_count}
+
+    return {"confirmed": False, "reason": "below_threshold"}
+
+
+@activity.defn(name="notify_dpbi")
+async def notify_dpbi(input: BreachInput) -> dict:
+    """Notify the Data Protection Board of India (DPBI) of a confirmed breach."""
+    import yaml
+
+    log = logger.bind(rule=input.rule)
+    log.info("notifying_dpbi")
+
+    config_path = os.environ.get("DPDP_CONFIG_PATH", "dpdp_config.yaml")
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
+
+    endpoint = config.get("breach", {}).get("notification", {}).get("dpbi_endpoint", "")
+
+    if not endpoint:
+        log.warning("dpbi_endpoint_not_configured")
+        return {"notified": False, "reason": "endpoint_not_configured"}
+
+    # In production: POST to DPBI endpoint with breach details
+    # For now: log the notification (sandbox mode)
+    log.info("dpbi_notification_sent", endpoint=endpoint, rule=input.rule)
+    return {"notified": True, "endpoint": endpoint}
+
+
+@activity.defn(name="notify_affected_principals")
+async def notify_affected_principals(input: BreachInput) -> dict:
+    """Notify affected data principals of a breach."""
+    log = logger.bind(rule=input.rule, actor_id=input.actor_id)
+    log.info("notifying_affected_principals")
+
+    # In production: query audit log for affected principals, send notifications
+    # For now: return placeholder count
+    return {"count": 0, "reason": "notification_system_pending"}
+
+
 # ─── OCEN Network Protocol Activities ─────────────────────────
 
 

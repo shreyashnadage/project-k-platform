@@ -1,0 +1,193 @@
+/* ==========================================================================
+   Munimco Desk Theme — AUTO-GENERATED from brand.yaml
+   Do not edit manually. Run: python -m brand.generate_css
+   ========================================================================== */
+
+:root {
+  /* ── Brand tokens ─────────────────────────────────────── */
+  --brand-cream: #F5F0E8;
+  --brand-navy: #0D1B2A;
+  --brand-navy-muted: #1B263B;
+  --brand-navy-elevated: #152A40;
+  --brand-teal: #2A9D8F;
+  --brand-teal-dark: #3DB8A9;
+  --brand-teal-accessible: #1F7A6E;
+  --brand-saffron: #E07A3D;
+  --brand-amber: #D4A373;
+  --brand-error: #C45C4A;
+  --brand-surface: #FFFFFF;
+  --brand-surface-muted: #FAF7F2;
+  --brand-border: #E8E2D8;
+  --brand-border-strong: #C9C0B4;
+  --brand-text-secondary: #415A77;
+  --brand-text-tertiary: #6B7C93;
+
+  /* ── Shape tokens ─────────────────────────────────────── */
+  --brand-radius-sm: 6px;
+  --brand-radius-md: 10px;
+  --brand-radius-lg: 14px;
+  --brand-radius-xl: 20px;
+  --brand-shadow-sm: 0 1px 2px rgba(13, 27, 42, 0.06);
+  --brand-shadow-md: 0 4px 12px rgba(13, 27, 42, 0.08);
+  --brand-focus-ring: 0 0 0 2px rgba(42, 157, 143, 0.25);
+
+  /* ── Map to Frappe CSS variables ──────────────────────── */
+  --primary: #0D1B2A;
+  --primary-color: #0D1B2A;
+  --btn-primary: #0D1B2A;
+  --text-color: #0D1B2A;
+  --text-muted: #415A77;
+  --bg-color: #F5F0E8;
+  --fg-color: #FFFFFF;
+  --border-color: #E8E2D8;
+  --control-bg: #FFFFFF;
+  --control-bg-on-gray: #FAF7F2;
+  --heading-color: #0D1B2A;
+  --navbar-bg: #0D1B2A;
+  --navbar-color: #F5F0E8;
+  --awesomplete-hover-bg: #FAF7F2;
+  --font-stack: "Plus Jakarta Sans", "Outfit", system-ui, sans-serif;
+}
+
+/* ── Links & focus ──────────────────────────────────────── */
+
+a,
+.link-content a {
+  color: #2A9D8F;
+}
+a:hover {
+  color: #1F7A6E;
+}
+.btn:focus,
+.form-control:focus {
+  border-color: #2A9D8F;
+  box-shadow: 0 0 0 2px rgba(42, 157, 143, 0.25);
+}
+
+/* ── Primary button ─────────────────────────────────────── */
+
+.btn-primary,
+.btn-primary-dark {
+  background-color: #0D1B2A;
+  border-color: #0D1B2A;
+  color: #F5F0E8;
+  border-radius: 10px;
+}
+.btn-primary:hover {
+  background-color: #152A40;
+  border-color: #152A40;
+}
+
+/* ── Secondary / default ────────────────────────────────── */
+
+.btn-default {
+  background-color: #FFFFFF;
+  border-color: #E8E2D8;
+  color: #0D1B2A;
+  border-radius: 10px;
+}
+
+/* ── Accent / "Co" actions ──────────────────────────────── */
+
+.btn-secondary,
+.btn.btn-secondary {
+  background-color: #2A9D8F;
+  border-color: #2A9D8F;
+  color: #FFFFFF;
+  border-radius: 10px;
+}
+
+/* ── Indicators ─────────────────────────────────────────── */
+
+.indicator-pill.green,
+.indicator.green {
+  background: rgba(42, 157, 143, 0.15);
+  color: #2A9D8F;
+}
+.indicator-pill.orange,
+.indicator.orange,
+.indicator-pill.yellow {
+  background: rgba(224, 122, 61, 0.15);
+  color: #E07A3D;
+}
+.indicator-pill.red,
+.indicator.red {
+  background: rgba(196, 92, 74, 0.15);
+  color: #C45C4A;
+}
+
+/* ── Forms ──────────────────────────────────────────────── */
+
+.form-section .section-head {
+  color: #0D1B2A;
+  font-weight: 600;
+}
+.form-control,
+.frappe-control .control-input {
+  border-radius: 10px;
+  border-color: #E8E2D8;
+}
+.frappe-list,
+.list-row-container {
+  border-color: #E8E2D8;
+}
+.list-row-head {
+  color: #415A77;
+  font-weight: 500;
+}
+
+/* ── Sidebar / desk ─────────────────────────────────────── */
+
+.desk-sidebar .standard-sidebar-item.selected {
+  border-left: 3px solid #2A9D8F;
+  background: #FAF7F2;
+}
+.module-link.active {
+  color: #2A9D8F;
+}
+
+/* ── Cards / workspace ──────────────────────────────────── */
+
+.widget.number-widget,
+.dashboard-list-item {
+  border-radius: 14px;
+  border: 1px solid #E8E2D8;
+  background: #FFFFFF;
+}
+.widget-head {
+  color: #415A77;
+  font-weight: 500;
+}
+.widget-body .number {
+  color: #0D1B2A;
+  font-weight: 700;
+}
+
+/* ── Loan Management specifics ──────────────────────────── */
+
+.munimco-mono,
+.frappe-control[data-fieldtype="Currency"] .control-value,
+.frappe-control[data-fieldtype="Float"] .control-value {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Dark mode ──────────────────────────────────────────── */
+
+[data-theme="dark"],
+body.dark {
+  --bg-color: #0D1B2A;
+  --fg-color: #1B263B;
+  --text-color: #F5F0E8;
+  --text-muted: #A8B8C8;
+  --border-color: #2D3E50;
+  --control-bg: #1B263B;
+  --navbar-bg: #0D1B2A;
+  --primary: #3DB8A9;
+  --primary-color: #3DB8A9;
+}
+[data-theme="dark"] .btn-primary {
+  background-color: #F5F0E8;
+  color: #0D1B2A;
+  border-color: #F5F0E8;
+}

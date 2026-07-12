@@ -15,16 +15,25 @@ from temporalio.worker import Worker
 
 from services.la_orchestrator.activities import (
     check_dpdp_consent,
+    detect_breaches,
+    enforce_retention,
     evaluate_decision,
     execute_access_right,
     execute_correction_right,
     execute_erasure_right,
     fetch_aa_data,
+    notify_affected_principals,
+    notify_dpbi,
     submit_ocen_loan_request,
     submit_to_lender,
     validate_gst,
 )
-from services.la_orchestrator.workflows import DSRFulfillmentWorkflow, LoanOriginationWorkflow
+from services.la_orchestrator.workflows import (
+    BreachDetectionWorkflow,
+    DSRFulfillmentWorkflow,
+    LoanOriginationWorkflow,
+    RetentionEnforcementWorkflow,
+)
 
 logger = structlog.get_logger()
 
@@ -41,14 +50,23 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=TASK_QUEUE,
-        workflows=[LoanOriginationWorkflow, DSRFulfillmentWorkflow],
+        workflows=[
+            LoanOriginationWorkflow,
+            DSRFulfillmentWorkflow,
+            RetentionEnforcementWorkflow,
+            BreachDetectionWorkflow,
+        ],
         activities=[
             check_dpdp_consent,
+            detect_breaches,
+            enforce_retention,
             evaluate_decision,
             execute_access_right,
             execute_correction_right,
             execute_erasure_right,
             fetch_aa_data,
+            notify_affected_principals,
+            notify_dpbi,
             submit_to_lender,
             submit_ocen_loan_request,
             validate_gst,

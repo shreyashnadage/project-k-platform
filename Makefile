@@ -82,7 +82,15 @@ topics:  ## Create Redpanda topics
 schemas:  ## Register schemas with Schema Registry
 	./scripts/register-schemas.sh
 
-# ─── Cleanup ─────────────────────────���──────────────────────
+# ─── Brand ─────────────────────────────────────────────────
+brand-css:  ## Regenerate Frappe CSS from brand.yaml
+	uv run python -m brand.generate_css
+
+brand-deploy:  ## Build Frappe app with latest brand assets
+	uv run python -m brand.generate_css
+	uv run python -m brand.deploy_to_frappe
+
+# ─── Cleanup ─────────────────────────────────────────────
 clean:  ## Nuke volumes and rebuild
 	docker compose down -v
 	rm -rf .venv __pycache__ .pytest_cache .ruff_cache .mypy_cache

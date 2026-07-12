@@ -367,3 +367,109 @@ class DSRFulfillmentWorkflow:
             "right_type": input.right_type,
             "result": result,
         }
+
+
+# ─── DPDP: Retention Enforcement Workflow (Cron) ──────────────
+
+
+@dataclass
+class RetentionEnforcementInput:
+    """Input for the retention cron workflow."""
+
+    dry_run: bool = False
+
+
+@workflow.defn
+class RetentionEnforcementWorkflow:
+    """Enforces data retention policies from dpdp_config.yaml.
+
+    Scheduled as a Temporal cron (daily at 2 AM IST).
+    Walks each retention category and pseudonymizes/deletes expired records.
+    """
+
+    @workflow.run
+    async def run(self, input: RetentionEnforcementInput) -> dict:
+        retry = RetryPolicy(
+            initial_interval=timedelta(seconds=5),
+            maximum_interval=timedelta(seconds=120),
+            maximum_attempts=3,
+        )
+
+        result = await workflow.execute_activity(
+            "enforce_retention",
+            input,
+            start_to_close_timeout=timedelta(minutes=30),
+            retry_policy=retry,
+        )
+
+        return result
+
+
+# ─── DPDP: Breach Detection Workflow ─────────────────────────
+
+
+@dataclass
+class BreachDetectionInput:
+    """Input for breach detection — triggered by audit log patterns."""
+
+    rule: str
+    event_count: int
+    window_minutes: int
+    actor_id: str = ""
+    details: dict | None = None
+
+    def __post_init__(self) -> None:
+        if self.details is None:
+            self.details = {}
+
+
+@workflow.defn
+class BreachDetectionWorkflow:
+    """Handles a suspected data breach per DPDP Act Section 8(6).
+
+    Triggered when audit log consumer detects suspicious patterns.
+    Notifies DPBI within 72 hours and affected data principals.
+    """
+
+    @workflow.run
+    async def run(self, input: BreachDetectionInput) -> dict:
+        retry = RetryPolicy(
+            initial_interval=timedelta(seconds=2),
+            maximum_interval=timedelta(seconds=30),
+            maximum_attempts=3,
+        )
+
+        detection_result = await workflow.execute_activity(
+            "detect_breaches",
+            input,
+            start_to_close_timeout=timedelta(minutes=5),
+            retry_policy=retry,
+        )
+
+        if not detection_result.get("confirmed"):
+            return {
+                "rule": input.rule,
+                "confirmed": False,
+                "reason": detection_result.get("reason", "below_threshold"),
+            }
+
+        notification_result = await workflow.execute_activity(
+            "notify_dpbi",
+            input,
+            start_to_close_timeout=timedelta(minutes=2),
+            retry_policy=retry,
+        )
+
+        principal_result = await workflow.execute_activity(
+            "notify_affected_principals",
+            input,
+            start_to_close_timeout=timedelta(minutes=10),
+            retry_policy=retry,
+        )
+
+        return {
+            "rule": input.rule,
+            "confirmed": True,
+            "dpbi_notified": notification_result.get("notified", False),
+            "principals_notified": principal_result.get("count", 0),
+        }
