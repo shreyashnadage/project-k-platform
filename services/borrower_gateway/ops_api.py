@@ -12,6 +12,8 @@ import uuid
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException
 
+from libs.common.events import EventMetadata, EventType, TradeEvent
+
 from .ops_models import (
     AnchorOnboardRequest,
     AnchorOnboardResponse,
@@ -36,6 +38,33 @@ vendors_router = APIRouter(prefix="/vendors", tags=["vendors"])
 
 OPS_API_KEY = os.environ.get("OPS_API_KEY", "dev-ops-key-change-in-production")
 PLATFORM_BASE_URL = os.environ.get("PLATFORM_BASE_URL", "http://localhost:8000")
+
+
+def _emit_event(
+    event_type: EventType,
+    entity_id: uuid.UUID,
+    entity_type: str = "loan",
+    payload: dict | None = None,
+    actor_id: str | None = None,
+) -> None:
+    """Emit an ops event to Redpanda. Best-effort — does not block the response."""
+    try:
+        from libs.common.event_producer import EventProducer
+
+        bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
+        producer = EventProducer(bootstrap_servers=bootstrap)
+        event = TradeEvent(
+            event_type=event_type,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            correlation_id=entity_id,
+            payload=payload or {},
+            metadata=EventMetadata(source_service="borrower-gateway", actor_id=actor_id),
+        )
+        producer.publish(event)
+        producer.flush(timeout=2.0)
+    except Exception as e:
+        logger.warning("ops_event_emission_failed", event_type=event_type.value, error=str(e))
 
 
 async def verify_ops_api_key(authorization: str = Header(...)) -> str:
@@ -75,6 +104,13 @@ async def ops_hold(
             held_by=request.held_by,
         )
 
+        _emit_event(
+            EventType.OPS_HOLD_APPLIED,
+            entity_id=request.application_id,
+            payload={"reason": request.reason, "held_by": request.held_by},
+            actor_id=request.held_by,
+        )
+
         return OpsCommandResponse(
             success=True,
             application_id=request.application_id,
@@ -109,6 +145,13 @@ async def ops_release(
             released_by=request.released_by,
         )
 
+        _emit_event(
+            EventType.OPS_HOLD_RELEASED,
+            entity_id=request.application_id,
+            payload={"released_by": request.released_by},
+            actor_id=request.released_by,
+        )
+
         return OpsCommandResponse(
             success=True,
             application_id=request.application_id,
@@ -135,6 +178,17 @@ async def ops_flag(
         flagged_by=request.flagged_by,
     )
 
+    _emit_event(
+        EventType.OPS_FLAG_ADDED,
+        entity_id=request.application_id,
+        payload={
+            "flag_type": request.flag_type,
+            "note": request.note,
+            "flagged_by": request.flagged_by,
+        },
+        actor_id=request.flagged_by,
+    )
+
     return OpsCommandResponse(
         success=True,
         application_id=request.application_id,
@@ -154,6 +208,13 @@ async def ops_escalate(
         application_id=str(request.application_id),
         reason=request.reason,
         escalated_by=request.escalated_by,
+    )
+
+    _emit_event(
+        EventType.OPS_ESCALATED,
+        entity_id=request.application_id,
+        payload={"reason": request.reason, "escalated_by": request.escalated_by},
+        actor_id=request.escalated_by,
     )
 
     return OpsCommandResponse(
@@ -242,6 +303,14 @@ async def invite_vendor(
         invited_by=request.invited_by,
     )
 
+    _emit_event(
+        EventType.VENDOR_INVITED,
+        entity_id=vendor_id,
+        entity_type="vendor",
+        payload={"gstin": request.gstin, "invited_by": request.invited_by},
+        actor_id=request.invited_by,
+    )
+
     return VendorInviteResponse(
         vendor_id=vendor_id,
         invite_token=invite_token,
@@ -290,6 +359,13 @@ async def register_vendor(request: VendorRegisterRequest) -> VendorRegisterRespo
         name=request.name,
     )
 
+    _emit_event(
+        EventType.VENDOR_ONBOARDED,
+        entity_id=vendor_id,
+        entity_type="vendor",
+        payload={"gstin": request.gstin, "name": request.name, "source": "pwa_self_register"},
+    )
+
     return VendorRegisterResponse(
         vendor_id=vendor_id,
         status="active",
@@ -306,6 +382,13 @@ async def activate_vendor(request: VendorActivateRequest) -> VendorRegisterRespo
         "vendor_activated",
         vendor_id=str(vendor_id),
         invite_token=request.invite_token[:8] + "...",
+    )
+
+    _emit_event(
+        EventType.VENDOR_ACTIVATED,
+        entity_id=vendor_id,
+        entity_type="vendor",
+        payload={"source": "pwa_invite_activation"},
     )
 
     return VendorRegisterResponse(
