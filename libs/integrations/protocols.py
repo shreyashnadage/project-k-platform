@@ -43,6 +43,18 @@ class GSTClient(Protocol):
     async def validate_gstin(self, gstin: str) -> GSTINValidation: ...
 
 
+class ConsentClient(Protocol):
+    """DPDP consent ledger — grant/revoke/check consent status."""
+
+    async def check_consent(
+        self, data_principal_id: str, purposes: list[str]
+    ) -> ConsentCheckResult: ...
+
+    async def link_aa_consent(
+        self, data_principal_id: str, aa_consent_id: str, loan_application_id: str
+    ) -> None: ...
+
+
 class LenderCallbackClient(Protocol):
     """Handles lender D4 underwriting callbacks."""
 
@@ -139,6 +151,12 @@ class GSTINValidation:
         self.valid = valid
         self.trade_name = trade_name
         self.status = status
+
+
+class ConsentCheckResult:
+    def __init__(self, allowed: bool, reason: str = "") -> None:
+        self.allowed = allowed
+        self.reason = reason
 
 
 class LenderDecision:

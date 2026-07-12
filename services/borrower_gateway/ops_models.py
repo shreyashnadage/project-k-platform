@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from decimal import Decimal  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
+from dpdp_core.classification.field_meta import dpdp_field
+from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTier
 from pydantic import BaseModel, Field
 
 # ─── Ops Command Requests ──────────────────────────────────────
@@ -63,8 +65,20 @@ class OpsApplicationDetail(BaseModel):
     """Full application detail for ops reconciliation."""
 
     application_id: UUID
-    vendor_gstin: str
-    anchor_gstin: str
+    vendor_gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=2555,
+        default="",
+    )
+    anchor_gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=2555,
+        default="",
+    )
     amount_requested: Decimal | None = None
     status: str
     current_gate: str | None = None
@@ -90,10 +104,36 @@ class OpsApplicationList(BaseModel):
 class VendorInviteRequest(BaseModel):
     """Ops invites a vendor (creates pending record, returns invite token)."""
 
-    name: str
-    gstin: str = Field(..., min_length=15, max_length=15)
-    phone: str = Field(..., min_length=10, max_length=13)
-    udyam_number: str | None = None
+    name: str = dpdp_field(
+        category=DPDPCategory.NAME,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=2555,
+        default=...,
+    )
+    gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
+    phone: str = dpdp_field(
+        category=DPDPCategory.CONTACT,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=1095,
+        min_length=10,
+        max_length=13,
+    )
+    udyam_number: str | None = dpdp_field(
+        category=DPDPCategory.GOVERNMENT_ID,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=2555,
+        default=None,
+    )
     invited_by: str
 
 
@@ -109,10 +149,36 @@ class VendorInviteResponse(BaseModel):
 class VendorRegisterRequest(BaseModel):
     """Vendor self-registration from PWA."""
 
-    name: str
-    gstin: str = Field(..., min_length=15, max_length=15)
-    phone: str = Field(..., min_length=10, max_length=13)
-    udyam_number: str | None = None
+    name: str = dpdp_field(
+        category=DPDPCategory.NAME,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=2555,
+        default=...,
+    )
+    gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
+    phone: str = dpdp_field(
+        category=DPDPCategory.CONTACT,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=1095,
+        min_length=10,
+        max_length=13,
+    )
+    udyam_number: str | None = dpdp_field(
+        category=DPDPCategory.GOVERNMENT_ID,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION],
+        retention_days=2555,
+        default=None,
+    )
     udyam_category: str | None = None
 
 
@@ -136,8 +202,21 @@ class VendorActivateRequest(BaseModel):
 class AnchorOnboardRequest(BaseModel):
     """Ops onboards an anchor."""
 
-    name: str
-    gstin: str = Field(..., min_length=15, max_length=15)
+    name: str = dpdp_field(
+        category=DPDPCategory.NAME,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
+        retention_days=2555,
+        default=...,
+    )
+    gstin: str = dpdp_field(
+        category=DPDPCategory.FINANCIAL_IDENTIFIER,
+        tier=DPDPTier.STANDARD,
+        purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
+        retention_days=2555,
+        min_length=15,
+        max_length=15,
+    )
     sector: str | None = None
     region: str | None = None
     onboarded_by: str

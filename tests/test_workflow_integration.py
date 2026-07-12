@@ -13,9 +13,10 @@ from services.la_orchestrator.activities import (
     EvaluateDecisionInput,
     SubmitOcenLoanRequestInput,
     SubmitToLenderInput,
+    check_dpdp_consent,
     fetch_aa_data,
 )
-from services.la_orchestrator.workflows import LoanOriginationWorkflow
+from services.la_orchestrator.workflows import LoanOriginationInput, LoanOriginationWorkflow
 
 # ─── Mock Activities ────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ class TestLoanOriginationWorkflow:
             task_queue="loan-origination",
             workflows=[LoanOriginationWorkflow],
             activities=[
+                check_dpdp_consent,
                 mock_evaluate_all_pass,
                 fetch_aa_data,
                 mock_submit_with_offer,
@@ -120,9 +122,14 @@ class TestLoanOriginationWorkflow:
                 mock_validate_gst,
             ],
         ):
+            input = LoanOriginationInput(
+                loan_application_id="test-app-001",
+                data_principal_id="27AADCB2230M1ZT",
+                vendor_gstin="27AADCB2230M1ZT",
+            )
             result = await workflow_env.client.execute_workflow(
                 LoanOriginationWorkflow.run,
-                "test-app-001",
+                input,
                 id="loan-origination-test-app-001",
                 task_queue="loan-origination",
             )
@@ -140,6 +147,7 @@ class TestLoanOriginationWorkflow:
             task_queue="loan-origination",
             workflows=[LoanOriginationWorkflow],
             activities=[
+                check_dpdp_consent,
                 mock_evaluate_d0_fail,
                 fetch_aa_data,
                 mock_submit_with_offer,
@@ -147,9 +155,14 @@ class TestLoanOriginationWorkflow:
                 mock_validate_gst,
             ],
         ):
+            input = LoanOriginationInput(
+                loan_application_id="test-app-d0-fail",
+                data_principal_id="27AADCB2230M1ZT",
+                vendor_gstin="27AADCB2230M1ZT",
+            )
             result = await workflow_env.client.execute_workflow(
                 LoanOriginationWorkflow.run,
-                "test-app-d0-fail",
+                input,
                 id="loan-origination-test-app-d0-fail",
                 task_queue="loan-origination",
             )
@@ -168,6 +181,7 @@ class TestLoanOriginationWorkflow:
             task_queue="loan-origination",
             workflows=[LoanOriginationWorkflow],
             activities=[
+                check_dpdp_consent,
                 mock_evaluate_no_lenders,
                 fetch_aa_data,
                 mock_submit_with_offer,
@@ -175,9 +189,14 @@ class TestLoanOriginationWorkflow:
                 mock_validate_gst,
             ],
         ):
+            input = LoanOriginationInput(
+                loan_application_id="test-app-no-lenders",
+                data_principal_id="27AADCB2230M1ZT",
+                vendor_gstin="27AADCB2230M1ZT",
+            )
             result = await workflow_env.client.execute_workflow(
                 LoanOriginationWorkflow.run,
-                "test-app-no-lenders",
+                input,
                 id="loan-origination-test-app-no-lenders",
                 task_queue="loan-origination",
             )
@@ -196,6 +215,7 @@ class TestLoanOriginationWorkflow:
             task_queue="loan-origination",
             workflows=[LoanOriginationWorkflow],
             activities=[
+                check_dpdp_consent,
                 mock_evaluate_all_pass,
                 fetch_aa_data,
                 mock_submit_no_offer,
@@ -203,9 +223,14 @@ class TestLoanOriginationWorkflow:
                 mock_validate_gst,
             ],
         ):
+            input = LoanOriginationInput(
+                loan_application_id="test-app-signal",
+                data_principal_id="27AADCB2230M1ZT",
+                vendor_gstin="27AADCB2230M1ZT",
+            )
             handle = await workflow_env.client.start_workflow(
                 LoanOriginationWorkflow.run,
-                "test-app-signal",
+                input,
                 id="loan-origination-test-app-signal",
                 task_queue="loan-origination",
             )

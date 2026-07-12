@@ -20,7 +20,13 @@ import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from libs.integrations.protocols import AAClient, GSTClient, LenderCallbackClient, OCENClient
+    from libs.integrations.protocols import (
+        AAClient,
+        ConsentClient,
+        GSTClient,
+        LenderCallbackClient,
+        OCENClient,
+    )
 
 
 def _get_mode() -> str:
@@ -65,9 +71,40 @@ def get_gst_client() -> GSTClient:
     raise NotImplementedError("Real GST client not yet implemented")
 
 
+def get_consent_client() -> ConsentClient:
+    if _get_mode() == "sandbox":
+        from sandbox.clients.consent_client import SandboxConsentClient
+
+        return SandboxConsentClient()
+    from dpdp_core.consent.ledger import create_ledger
+
+    return create_ledger()
+
+
 def get_lender_client(auto_approve: bool = True) -> LenderCallbackClient:
     if _get_mode() == "sandbox":
         from sandbox.clients.lender_client import SandboxLenderClient
 
         return SandboxLenderClient(auto_approve=auto_approve)
     raise NotImplementedError("Real lender callback client not yet implemented")
+
+
+def get_db_session_factory():
+    """Get an async session factory for database access."""
+    from contextlib import asynccontextmanager
+
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+    from sqlalchemy.orm import sessionmaker
+
+    db_url = os.environ.get(
+        "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/ocen_platform"
+    )
+    engine = create_async_engine(db_url)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def session_context():
+        async with async_session() as session:
+            yield session
+
+    return session_context

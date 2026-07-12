@@ -70,6 +70,17 @@ class EventType(enum.StrEnum):
     DDP_PACKAGE_ISSUED = "ddp.package_issued"
     DDP_VC_ISSUED = "ddp.vc_issued"
 
+    # DPDP Compliance
+    DPDP_CONSENT_CHECKED = "dpdp.consent_checked"
+    DPDP_CONSENT_DENIED = "dpdp.consent_denied"
+    DPDP_CONSENT_REVOKED = "dpdp.consent_revoked"
+    DPDP_DSR_SUBMITTED = "dpdp.dsr_submitted"
+    DPDP_DSR_FULFILLED = "dpdp.dsr_fulfilled"
+    DPDP_ERASURE_COMPLETED = "dpdp.erasure_completed"
+    DPDP_BREACH_DETECTED = "dpdp.breach_detected"
+    DPDP_BREACH_NOTIFIED = "dpdp.breach_notified"
+    DPDP_RETENTION_ENFORCED = "dpdp.retention_enforced"
+
 
 class TradeEvent(BaseModel):
     """The immutable event envelope. All events on the stream use this shape.
