@@ -39,6 +39,13 @@ vendors_router = APIRouter(prefix="/vendors", tags=["vendors"])
 OPS_API_KEY = os.environ.get("OPS_API_KEY", "dev-ops-key-change-in-production")
 PLATFORM_BASE_URL = os.environ.get("PLATFORM_BASE_URL", "http://localhost:8000")
 
+# Transitional shared-secret auth for /ops/* — replaced by real per-user
+# Keycloak tokens once the Platform Console ships (see Phase 3 of the
+# RBAC/role-UIs plan). Defaults to enabled so existing ops workflows keep
+# working; flip to "false" once every caller has migrated to a verified
+# per-user Bearer token.
+OPS_API_KEY_FALLBACK_ENABLED = os.environ.get("OPS_API_KEY_FALLBACK_ENABLED", "true").lower() == "true"
+
 
 def _emit_event(
     event_type: EventType,
@@ -68,7 +75,15 @@ def _emit_event(
 
 
 async def verify_ops_api_key(authorization: str = Header(...)) -> str:
-    """Validate Bearer API key for ops endpoints."""
+    """Validate Bearer API key for ops endpoints.
+
+    Transitional auth — see OPS_API_KEY_FALLBACK_ENABLED above.
+    """
+    if not OPS_API_KEY_FALLBACK_ENABLED:
+        raise HTTPException(
+            status_code=401,
+            detail="Shared ops API key auth is disabled. Use a per-user Keycloak token.",
+        )
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
     token = authorization[7:]

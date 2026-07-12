@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIdMiddleware
+from libs.common.service_auth import ServiceAuthMiddleware
 from libs.zen_rules.engine import ZenDecisionEngine
 
 from .models import (
@@ -20,6 +21,7 @@ configure_logging(json_output=True)
 
 app = FastAPI(title="VDP Wedge - Invoice Ingestion", version="0.1.0")
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(ServiceAuthMiddleware)
 
 zen_engine = ZenDecisionEngine("rules/")
 service = VDPWedgeService(zen_engine)

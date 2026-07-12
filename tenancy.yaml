@@ -1,0 +1,44 @@
+# Multi-tenancy configuration — PostgreSQL Row-Level Security.
+#
+# Drives libs/db/rls.py. Tenant isolation is enforced at the database
+# level via RLS policies — even a code bug cannot leak cross-tenant data.
+#
+# The tenant ID is extracted from the verified JWT claim specified in
+# tenant_claim_path, then set as a Postgres session variable before every
+# query. RLS policies reference this variable.
+
+tenant_claim_path: "org_id"
+tenant_column: "anchor_gstin"
+session_variable: "app.tenant_id"
+
+# Roles that bypass RLS (see all data across tenants).
+# These use SET ROLE to a superuser-like role in Postgres.
+bypass_roles:
+  - platform-admin
+  - operations
+
+# Tables with tenant-scoped data. Each gets an RLS policy.
+scoped_tables:
+  - name: loan_applications
+    tenant_column: anchor_gstin
+    policy_name: anchor_isolation_loans
+
+  - name: vendor_profiles
+    tenant_column: anchor_gstin
+    policy_name: anchor_isolation_vendors
+
+  - name: invoices
+    tenant_column: anchor_gstin
+    policy_name: anchor_isolation_invoices
+
+  - name: trust_scores
+    tenant_column: anchor_gstin
+    policy_name: anchor_isolation_trust
+
+# RLS policy template. Applied to each scoped_table.
+# Uses current_setting() to read the session variable set by middleware.
+rls_policy_template: |
+  CREATE POLICY {policy_name} ON {table_name}
+    FOR ALL
+    USING ({tenant_column} = current_setting('{session_variable}', true))
+    WITH CHECK ({tenant_column} = current_setting('{session_variable}', true));

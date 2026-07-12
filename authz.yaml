@@ -1,0 +1,50 @@
+# Platform authorization allow-list — explicit public paths.
+#
+# This is the single source of truth for which endpoints intentionally bypass
+# Keycloak-JWT RBAC (enforced by libs/common/middleware.py::DPDPRBACMiddleware).
+#
+# Default posture (when DPDP_RBAC_ENABLED=true): DENY. Any path not listed here,
+# and not covered by an allowed_roles match in dpdp_config.yaml's `rbac:` section,
+# is rejected. A path appearing here is a reviewed, deliberate decision — not an
+# oversight — so every entry must state WHY it's safe to leave unauthenticated
+# at this layer.
+#
+# A path listed here is not necessarily unprotected overall — several are
+# gated by a different mechanism (HMAC signature, JWS signature) enforced
+# directly in the endpoint handler, not by this middleware.
+
+public_paths:
+  - path: /health
+    reason: "Liveness check consumed by load balancers/orchestrators. No sensitive data returned."
+
+  - path: /brand
+    reason: "Public theming config (name, colors, typography) for frontend consumption. No sensitive data."
+
+  - path: /vendors/register
+    reason: "Vendor self-registration. No verified vendor identity exists yet to check against — see Phase 2 (Ory Kratos/Hydra CIAM) plan, which will bind this to a real identity."
+
+  - path: /vendors/activate
+    reason: "Vendor invite activation. Same rationale as /vendors/register — pre-CIAM."
+
+  - path: /loans/apply
+    reason: "Loan application submission. Pre-CIAM — no vendor identity to bind yet. Phase 2 adds ownership checks once vendor auth exists."
+
+  - path: /loans/status
+    reason: "Loan status check. Pre-CIAM — same rationale as /loans/apply."
+
+  - path: /invoices/captured
+    reason: "ERP/Frappe connector webhook. Protected by inbound HMAC signature verification (FRAPPE_WEBHOOK_SECRET) in the endpoint handler itself, not by this middleware."
+
+  - path: /v4.0.0alpha/loanApplications/
+    reason: "OCEN network lender callbacks. Protected by detached JWS signature verification (RFC 7797) in the endpoint handler, not by this middleware. Signature is mandatory outside INTEGRATION_MODE=sandbox."
+
+# Paths that require a verified Bearer token + role match UNCONDITIONALLY —
+# even when DPDP_RBAC_ENABLED=false (the local-dev default for everything
+# else). These are DPDP Act data-subject-rights and consent endpoints:
+# sensitive PII exposure that must never depend on an operator remembering
+# to flip a dev-convenience toggle.
+always_protected_paths:
+  - path: /dpdp/rights
+    reason: "Data Subject Rights requests (access/erasure/correction/grievance/nomination). Must never be reachable without a verified platform-admin identity."
+  - path: /dpdp/consent
+    reason: "Consent status lookups reveal a data principal's consent history. Same rationale as /dpdp/rights."

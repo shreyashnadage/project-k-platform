@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIdMiddleware
+from libs.common.service_auth import ServiceAuthMiddleware
 
 from .models import TrustScore
 from .service import TrustGraphService
@@ -17,6 +18,7 @@ configure_logging(json_output=True)
 
 app = FastAPI(title="Trust Graph - Proprietary Scoring", version="0.1.0")
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(ServiceAuthMiddleware)
 
 graph_service = TrustGraphService()
 

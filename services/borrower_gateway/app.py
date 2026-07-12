@@ -14,6 +14,7 @@ from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIdMiddleware, DPDPRBACMiddleware
 from libs.common.rate_limit import RateLimitMiddleware
 from libs.common.tracing import init_tracing
+from libs.common.webhook_auth import verify_hmac_signature
 from libs.ocen_client.jws.signer import OcenJWSSigner
 from libs.ocen_client.models.journey import (
     CreateLoanApplicationResponse,
@@ -35,6 +36,9 @@ from .service import get_gateway_service
 configure_logging(json_output=True)
 init_tracing(service_name="borrower-gateway")
 logger = structlog.get_logger()
+
+INTEGRATION_MODE = os.environ.get("INTEGRATION_MODE", "")
+FRAPPE_WEBHOOK_SECRET = os.environ.get("FRAPPE_WEBHOOK_SECRET", "")
 
 app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.2.0")
 app.add_middleware(CorrelationIdMiddleware)
@@ -108,9 +112,22 @@ def get_loan_status(request: ApplicationStatusRequest) -> LoanApplicationStatus:
 
 
 @app.post("/invoices/captured", response_model=InvoiceCapturedResponse)
-async def capture_invoice(request: InvoiceCapturedRequest) -> InvoiceCapturedResponse:
-    """Receive invoice notification from ERP connector (ERPNext/Frappe)."""
+async def capture_invoice(
+    request: InvoiceCapturedRequest, http_request: Request
+) -> InvoiceCapturedResponse:
+    """Receive invoice notification from ERP connector (ERPNext/Frappe).
+
+    Verified via inbound HMAC signature (X-Platform-Signature header, same
+    FRAPPE_WEBHOOK_SECRET and scheme used for outbound delivery in
+    services/frappe_sync/webhook_client.py). Skipped only in sandbox mode.
+    """
     import uuid
+
+    if INTEGRATION_MODE != "sandbox":
+        signature = http_request.headers.get("x-platform-signature")
+        body = await http_request.body()
+        if not verify_hmac_signature(FRAPPE_WEBHOOK_SECRET, body, signature):
+            raise HTTPException(status_code=401, detail="Invalid or missing webhook signature")
 
     invoice_id = uuid.uuid4()
     logger.info(
@@ -134,10 +151,15 @@ async def capture_invoice(request: InvoiceCapturedRequest) -> InvoiceCapturedRes
 
 
 async def _verify_jws(request: Request) -> bool:
-    """Verify inbound JWS signature from lender (if present)."""
+    """Verify inbound JWS signature from lender.
+
+    A missing signature is only tolerated in INTEGRATION_MODE=sandbox (local
+    dev / simulated lender flows). Outside sandbox, an unsigned callback is
+    always rejected.
+    """
     signature = request.headers.get("x-jws-signature")
     if not signature:
-        return True  # No signature = dev mode, allow through
+        return INTEGRATION_MODE == "sandbox"
     body = await request.body()
     return jws_signer.verify(signature, body)
 

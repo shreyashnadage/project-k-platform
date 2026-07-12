@@ -1,0 +1,71 @@
+# Identity provider configuration — drives libs/auth/factory.py.
+#
+# All identity-related decisions (which provider, JWKS endpoints, token
+# lifetimes, claim paths, org types) are configured here. Application
+# code never hardcodes provider details.
+#
+# Environment variable references (${VAR}) are resolved at runtime.
+
+workforce:
+  provider: keycloak
+  jwks_url: ${KEYCLOAK_JWKS_URL}
+  issuer: ${KEYCLOAK_ISSUER}
+  audience: ${KEYCLOAK_AUDIENCE}
+  algorithms: [RS256]
+  jwks_cache_ttl_seconds: 300
+  role_claim_path: "realm_access.roles"
+  roles:
+    - platform-admin
+    - operations
+    - anchor-manager
+    - lender-viewer
+
+borrower:
+  provider: kratos
+  kratos_public_url: ${KRATOS_PUBLIC_URL}
+  kratos_admin_url: ${KRATOS_ADMIN_URL}
+  hydra_public_url: ${HYDRA_PUBLIC_URL}
+  hydra_admin_url: ${HYDRA_ADMIN_URL}
+  hydra_jwks_url: ${HYDRA_JWKS_URL}
+  algorithms: [RS256]
+  default_org_type: vendor
+
+  identity_schema:
+    traits:
+      - name: phone
+        type: string
+        required: true
+        verification: otp
+      - name: org_type
+        type: enum
+        values: [vendor, anchor]
+        default: vendor
+      - name: gstin
+        type: string
+        required: false
+      - name: udyam_number
+        type: string
+        required: false
+      - name: enterprise_name
+        type: string
+        required: false
+
+  credentials:
+    - type: otp
+      via: sms
+      gateway: ${SMS_GATEWAY_PROVIDER}
+
+  session:
+    token_lifetime_seconds: 3600
+    refresh_lifetime_seconds: 604800
+
+# Reserved org_types for future expansion (e.g., anchor self-service portal).
+# Adding a new org_type here + a corresponding Kratos schema is all that's
+# needed to onboard a new identity domain — zero application code changes.
+org_type_registry:
+  vendor:
+    description: "MSME vendor/borrower — loan applicant"
+    ciam_schema: borrower
+  anchor:
+    description: "Anchor MSME — provides Kind 1 attestation"
+    ciam_schema: borrower

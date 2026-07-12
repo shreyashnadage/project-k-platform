@@ -1,13 +1,25 @@
-"""ASGI middleware for correlation ID propagation and DPDP RBAC enforcement."""
+"""ASGI middleware for correlation ID propagation and platform RBAC enforcement.
+
+RBAC posture (when DPDP_RBAC_ENABLED=true) is fail-closed:
+  1. A request to a path listed in authz.yaml's public_paths is always allowed.
+  2. Every other request must present a valid Bearer token.
+  3. The token's roles must match an entry in dpdp_config.yaml's `rbac:` section
+     for that path — if no entry covers the path, access is DENIED (not
+     allowed, unlike dpdp_core's own permissive default).
+  4. Any failure to verify the token (expired, invalid, unreachable JWKS)
+     results in a 401 — never a silent pass-through.
+"""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
+import yaml
 from dpdp_core.middleware.consent_context import set_processing_context
-from dpdp_core.middleware.rbac import check_role_access, extract_roles_from_token
+from dpdp_core.middleware.rbac import extract_roles_from_token
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 
@@ -24,6 +36,29 @@ RBAC_ENABLED = os.environ.get("DPDP_RBAC_ENABLED", "false").lower() == "true"
 KEYCLOAK_JWKS_URL = os.environ.get("KEYCLOAK_JWKS_URL", "")
 KEYCLOAK_ISSUER = os.environ.get("KEYCLOAK_ISSUER", "")
 KEYCLOAK_AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE", "")
+INTEGRATION_MODE = os.environ.get("INTEGRATION_MODE", "")
+AUTHZ_CONFIG_PATH = os.environ.get("AUTHZ_CONFIG_PATH", "authz.yaml")
+DPDP_CONFIG_PATH = os.environ.get("DPDP_CONFIG_PATH", "dpdp_config.yaml")
+
+
+def _has_always_protected_paths() -> bool:
+    path = Path(AUTHZ_CONFIG_PATH)
+    if not path.exists():
+        return False
+    with open(path) as f:
+        raw = yaml.safe_load(f) or {}
+    return bool(raw.get("always_protected_paths"))
+
+
+if (RBAC_ENABLED or _has_always_protected_paths()) and not KEYCLOAK_JWKS_URL and INTEGRATION_MODE != "sandbox":
+    raise RuntimeError(
+        "JWT signature verification is required (DPDP_RBAC_ENABLED=true, and/or "
+        "authz.yaml declares always_protected_paths such as /dpdp/rights) but "
+        "KEYCLOAK_JWKS_URL is not set. Refusing to start with unverified JWT "
+        "decoding outside INTEGRATION_MODE=sandbox. Set KEYCLOAK_JWKS_URL "
+        "(e.g. http://keycloak:8080/realms/ocen-platform/protocol/openid-connect/certs) "
+        "or set INTEGRATION_MODE=sandbox for local development."
+    )
 
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
@@ -41,37 +76,39 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 
 
 class DPDPRBACMiddleware(BaseHTTPMiddleware):
-    """Enforces DPDP-configured RBAC using Keycloak JWT roles.
+    """Enforces fail-closed RBAC using Keycloak JWT roles.
 
-    Enabled only when DPDP_RBAC_ENABLED=true. In dev mode (default),
-    the middleware passes through all requests and sets a default
-    processing context.
+    Disabled (full pass-through) only when DPDP_RBAC_ENABLED=false, which is
+    the local-dev default. Once enabled, every request must either match an
+    explicit public path (authz.yaml) or present a Bearer token whose roles
+    are allowed for that path per dpdp_config.yaml's rbac section.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         set_processing_context(purpose="request_processing")
 
-        if not RBAC_ENABLED:
-            return await call_next(request)
-
         path = request.url.path
-        auth_header = request.headers.get("authorization", "")
+        always_protected = _is_always_protected_path(path)
 
-        if not auth_header.startswith("Bearer "):
-            # Protected paths require auth when RBAC is on
-            if _is_protected_path(path):
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Authorization header required"},
-                )
+        if not RBAC_ENABLED and not always_protected:
             return await call_next(request)
+
+        if _is_public_path(path):
+            return await call_next(request)
+
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Authorization header required"},
+            )
 
         try:
             token = auth_header.removeprefix("Bearer ")
             decoded = _decode_token(token)
             roles = extract_roles_from_token(decoded)
 
-            if not check_role_access(path, roles):
+            if not _check_role_access_default_deny(path, roles):
                 logger.warning("rbac_denied", path=path, roles=list(roles))
                 return JSONResponse(
                     status_code=403,
@@ -84,8 +121,14 @@ class DPDPRBACMiddleware(BaseHTTPMiddleware):
                 status_code=401,
                 content={"detail": str(e)},
             )
-        except Exception:
-            logger.debug("rbac_token_decode_skipped", path=path)
+        except Exception as e:
+            # Fail closed: any unexpected decode/JWKS failure is a 401, never
+            # a silent pass-through.
+            logger.error("rbac_verification_error", path=path, error=str(e))
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Unable to verify authorization"},
+            )
 
         return await call_next(request)
 
@@ -95,6 +138,9 @@ class _AuthError(Exception):
 
 
 _jwks_client = None
+_public_paths_cache: list[str] | None = None
+_always_protected_paths_cache: list[str] | None = None
+_rbac_map_cache: dict[str, set[str]] | None = None
 
 
 def _get_jwks_client():
@@ -110,7 +156,8 @@ def _decode_token(token: str) -> dict:
     """Decode and validate a JWT token.
 
     When KEYCLOAK_JWKS_URL is configured, validates signature against Keycloak.
-    Otherwise falls back to unverified decode (dev mode only).
+    Otherwise falls back to unverified decode — only reachable when
+    INTEGRATION_MODE=sandbox, enforced by the module-level startup check above.
     """
     import jwt
 
@@ -137,7 +184,73 @@ def _decode_token(token: str) -> dict:
         return jwt.decode(token, options={"verify_signature": False})
 
 
-def _is_protected_path(path: str) -> bool:
-    """Check if a path requires authentication based on RBAC config."""
-    protected_prefixes = ("/ops/", "/dpdp/")
-    return any(path.startswith(p) for p in protected_prefixes)
+def _load_public_paths() -> list[str]:
+    global _public_paths_cache
+    if _public_paths_cache is None:
+        path = Path(AUTHZ_CONFIG_PATH)
+        if path.exists():
+            with open(path) as f:
+                raw = yaml.safe_load(f) or {}
+            _public_paths_cache = [entry["path"] for entry in raw.get("public_paths", [])]
+        else:
+            _public_paths_cache = []
+    return _public_paths_cache
+
+
+def _load_always_protected_paths() -> list[str]:
+    global _always_protected_paths_cache
+    if _always_protected_paths_cache is None:
+        path = Path(AUTHZ_CONFIG_PATH)
+        if path.exists():
+            with open(path) as f:
+                raw = yaml.safe_load(f) or {}
+            _always_protected_paths_cache = [
+                entry["path"] for entry in raw.get("always_protected_paths", [])
+            ]
+        else:
+            _always_protected_paths_cache = []
+    return _always_protected_paths_cache
+
+
+def _is_always_protected_path(path: str) -> bool:
+    return any(path.startswith(p) for p in _load_always_protected_paths())
+
+
+def _load_rbac_map() -> dict[str, set[str]]:
+    global _rbac_map_cache
+    if _rbac_map_cache is None:
+        path = Path(DPDP_CONFIG_PATH)
+        rbac_map: dict[str, set[str]] = {}
+        if path.exists():
+            with open(path) as f:
+                raw = yaml.safe_load(f) or {}
+            for entry in raw.get("rbac", []):
+                rbac_map[entry["path_prefix"]] = set(entry["allowed_roles"])
+        _rbac_map_cache = rbac_map
+    return _rbac_map_cache
+
+
+def reset_authz_cache() -> None:
+    """Clear cached authz.yaml/dpdp_config.yaml reads — for tests."""
+    global _public_paths_cache, _always_protected_paths_cache, _rbac_map_cache
+    _public_paths_cache = None
+    _always_protected_paths_cache = None
+    _rbac_map_cache = None
+
+
+def _is_public_path(path: str) -> bool:
+    return any(path.startswith(p) for p in _load_public_paths())
+
+
+def _check_role_access_default_deny(path: str, roles: set[str]) -> bool:
+    """Fail-closed role check: a path with no matching rbac_map entry is DENIED.
+
+    This intentionally does not delegate to dpdp_core.check_role_access,
+    which allows any path not present in its role map — the opposite,
+    permissive default this platform's RBAC posture requires.
+    """
+    rbac_map = _load_rbac_map()
+    for prefix, allowed_roles in rbac_map.items():
+        if path.startswith(prefix):
+            return bool(roles & allowed_roles)
+    return False
