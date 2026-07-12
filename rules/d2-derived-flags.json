@@ -1,0 +1,94 @@
+{
+  "id": "d2-derived-flags",
+  "name": "D2 Derived Attributes and Risk Flags",
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "input",
+      "name": "Request",
+      "type": "inputNode",
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "flags-table",
+      "name": "Risk Flag Evaluation",
+      "type": "decisionTableNode",
+      "position": { "x": 400, "y": 200 },
+      "content": {
+        "hitPolicy": "collect",
+        "rules": [
+          {
+            "_id": "rule-1",
+            "_description": "High concentration risk",
+            "in-concentration": "> 0.8",
+            "in-dso": "",
+            "in-dilution": "",
+            "in-anchor-dpd": "",
+            "out-flag": "\"high_concentration\"",
+            "out-severity": "\"high\""
+          },
+          {
+            "_id": "rule-2",
+            "_description": "Elevated DSO",
+            "in-concentration": "",
+            "in-dso": "> 90",
+            "in-dilution": "",
+            "in-anchor-dpd": "",
+            "out-flag": "\"elevated_dso\"",
+            "out-severity": "\"medium\""
+          },
+          {
+            "_id": "rule-3",
+            "_description": "High dilution rate",
+            "in-concentration": "",
+            "in-dso": "",
+            "in-dilution": "> 0.15",
+            "in-anchor-dpd": "",
+            "out-flag": "\"high_dilution\"",
+            "out-severity": "\"high\""
+          },
+          {
+            "_id": "rule-4",
+            "_description": "Anchor payment delays",
+            "in-concentration": "",
+            "in-dso": "",
+            "in-dilution": "",
+            "in-anchor-dpd": "> 30",
+            "out-flag": "\"anchor_payment_delays\"",
+            "out-severity": "\"medium\""
+          },
+          {
+            "_id": "rule-5",
+            "_description": "No flags - clean",
+            "in-concentration": "<= 0.8",
+            "in-dso": "<= 90",
+            "in-dilution": "<= 0.15",
+            "in-anchor-dpd": "<= 30",
+            "out-flag": "\"none\"",
+            "out-severity": "\"none\""
+          }
+        ],
+        "inputs": [
+          { "id": "in-concentration", "field": "revenue_concentration", "name": "Revenue Concentration" },
+          { "id": "in-dso", "field": "days_sales_outstanding", "name": "DSO (days)" },
+          { "id": "in-dilution", "field": "dilution_rate", "name": "Dilution Rate" },
+          { "id": "in-anchor-dpd", "field": "anchor_avg_dpd", "name": "Anchor Avg DPD" }
+        ],
+        "outputs": [
+          { "id": "out-flag", "field": "flag", "name": "Risk Flag" },
+          { "id": "out-severity", "field": "severity", "name": "Severity" }
+        ]
+      }
+    },
+    {
+      "id": "output",
+      "name": "Response",
+      "type": "outputNode",
+      "position": { "x": 700, "y": 200 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "input", "targetId": "flags-table" },
+    { "id": "e2", "sourceId": "flags-table", "targetId": "output" }
+  ]
+}

@@ -18,8 +18,21 @@ class BorrowerGatewayService:
 
     def __init__(self) -> None:
         self._applications: dict[uuid.UUID, dict[str, Any]] = {}
+        self._idempotency_index: dict[str, uuid.UUID] = {}
 
     def initiate_application(self, request: LoanApplicationRequest) -> LoanApplicationResponse:
+        if request.idempotency_key and request.idempotency_key in self._idempotency_index:
+            existing_id = self._idempotency_index[request.idempotency_key]
+            app = self._applications[existing_id]
+            logger.info("idempotent_request_returned", application_id=str(existing_id))
+            return LoanApplicationResponse(
+                application_id=existing_id,
+                invoice_id=app["invoice_id"],
+                status=app["status"],
+                workflow_id=app["workflow_id"],
+                message="Existing application returned (idempotent).",
+            )
+
         app_id = uuid.uuid4()
         workflow_id = f"loan-{app_id}"
 
@@ -35,6 +48,9 @@ class BorrowerGatewayService:
             "created_at": datetime.now(UTC),
             "updated_at": datetime.now(UTC),
         }
+
+        if request.idempotency_key:
+            self._idempotency_index[request.idempotency_key] = app_id
 
         logger.info(
             "loan_application_initiated",

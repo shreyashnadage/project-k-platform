@@ -16,6 +16,7 @@ class LoanApplicationRequest(BaseModel):
     vendor_gstin: str = Field(..., min_length=15, max_length=15)
     anchor_gstin: str = Field(..., min_length=15, max_length=15)
     amount_requested: Decimal = Field(..., gt=0)
+    idempotency_key: str | None = None
 
 
 class LoanApplicationResponse(BaseModel):

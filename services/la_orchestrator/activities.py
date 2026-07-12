@@ -12,11 +12,16 @@ Each activity MUST be idempotent — Temporal may retry on failure.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
+import hashlib
+
+import orjson
 import structlog
 from temporalio import activity
 
+from libs.common.events import EventType, TradeEvent
 from libs.integrations.factory import (
     get_aa_client,
     get_gst_client,
@@ -35,12 +40,15 @@ from libs.zen_rules.engine import ZenDecisionEngine
 logger = structlog.get_logger()
 
 _zen_engine: ZenDecisionEngine | None = None
+_zen_lock = threading.Lock()
 
 
 def get_zen_engine() -> ZenDecisionEngine:
     global _zen_engine
     if _zen_engine is None:
-        _zen_engine = ZenDecisionEngine("rules/")
+        with _zen_lock:
+            if _zen_engine is None:
+                _zen_engine = ZenDecisionEngine("rules/")
     return _zen_engine
 
 
@@ -86,11 +94,24 @@ async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
 
     if input.context and input.ruleset_name in get_zen_engine().loaded_rulesets:
         result = get_zen_engine().evaluate(input.ruleset_name, input.context)
+        input_hash = hashlib.sha256(orjson.dumps(input.context, option=orjson.OPT_SORT_KEYS)).hexdigest()[:16]
+        receipt_id = f"receipt-{input.loan_application_id}-{input.gate}"
+
+        log.info(
+            "decision_receipt_emitted",
+            gate=input.gate,
+            outcome=result.output.get("outcome", "pass"),
+            ruleset_hash=result.ruleset_hash,
+            input_hash=input_hash,
+            receipt_id=receipt_id,
+        )
+
         return {
             "outcome": result.output.get("outcome", "pass"),
             "reason": result.output.get("reason", "evaluated"),
             "ruleset_hash": result.ruleset_hash,
-            "receipt_id": f"receipt-{input.loan_application_id}-{input.gate}",
+            "input_hash": input_hash,
+            "receipt_id": receipt_id,
             "matched_lender_ids": result.output.get("matched_lender_ids", []),
         }
 
@@ -98,6 +119,7 @@ async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
         "outcome": "pass",
         "reason": "no_ruleset_or_context",
         "ruleset_hash": "none",
+        "input_hash": "none",
         "receipt_id": f"receipt-{input.loan_application_id}-{input.gate}",
         "matched_lender_ids": [],
     }

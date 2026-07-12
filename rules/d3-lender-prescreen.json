@@ -1,0 +1,74 @@
+{
+  "id": "d3-lender-prescreen",
+  "name": "D3 Lender Pre-screen",
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "input",
+      "name": "Request",
+      "type": "inputNode",
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "prescreen-table",
+      "name": "Lender Eligibility Filter",
+      "type": "decisionTableNode",
+      "position": { "x": 400, "y": 200 },
+      "content": {
+        "hitPolicy": "collect",
+        "rules": [
+          {
+            "_id": "rule-1",
+            "_description": "Conservative lender - low risk only",
+            "in-risk-flags": "== 0",
+            "in-amount": "<= 500000",
+            "in-months": ">= 12",
+            "in-trust-score": ">= 70",
+            "out-lender-id": "\"lender-conservative-01\"",
+            "out-priority": "1"
+          },
+          {
+            "_id": "rule-2",
+            "_description": "Standard lender - moderate risk",
+            "in-risk-flags": "<= 1",
+            "in-amount": "<= 2000000",
+            "in-months": ">= 6",
+            "in-trust-score": ">= 50",
+            "out-lender-id": "\"lender-standard-01\"",
+            "out-priority": "2"
+          },
+          {
+            "_id": "rule-3",
+            "_description": "Growth lender - higher risk tolerance",
+            "in-risk-flags": "<= 2",
+            "in-amount": "<= 5000000",
+            "in-months": ">= 3",
+            "in-trust-score": ">= 30",
+            "out-lender-id": "\"lender-growth-01\"",
+            "out-priority": "3"
+          }
+        ],
+        "inputs": [
+          { "id": "in-risk-flags", "field": "risk_flag_count", "name": "Risk Flag Count" },
+          { "id": "in-amount", "field": "requested_amount", "name": "Requested Amount (INR)" },
+          { "id": "in-months", "field": "months_of_data", "name": "Months of Data" },
+          { "id": "in-trust-score", "field": "trust_score", "name": "Trust Score" }
+        ],
+        "outputs": [
+          { "id": "out-lender-id", "field": "matched_lender_id", "name": "Matched Lender ID" },
+          { "id": "out-priority", "field": "priority", "name": "Priority" }
+        ]
+      }
+    },
+    {
+      "id": "output",
+      "name": "Response",
+      "type": "outputNode",
+      "position": { "x": 700, "y": 200 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "input", "targetId": "prescreen-table" },
+    { "id": "e2", "sourceId": "prescreen-table", "targetId": "output" }
+  ]
+}

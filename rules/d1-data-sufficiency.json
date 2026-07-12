@@ -1,0 +1,88 @@
+{
+  "id": "d1-data-sufficiency",
+  "name": "D1 Data Sufficiency Gate",
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "input",
+      "name": "Request",
+      "type": "inputNode",
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "sufficiency-table",
+      "name": "Data Sufficiency Check",
+      "type": "decisionTableNode",
+      "position": { "x": 400, "y": 200 },
+      "content": {
+        "hitPolicy": "first",
+        "rules": [
+          {
+            "_id": "rule-1",
+            "_description": "Sufficient data - pass",
+            "in-months": ">= 6",
+            "in-freshness": "<= 30",
+            "in-gst-filed": "== true",
+            "out-outcome": "\"pass\"",
+            "out-reason": "\"data_sufficient\""
+          },
+          {
+            "_id": "rule-2",
+            "_description": "Marginal data - 3-5 months",
+            "in-months": "[3..6)",
+            "in-freshness": "<= 60",
+            "in-gst-filed": "== true",
+            "out-outcome": "\"flag\"",
+            "out-reason": "\"marginal_data_coverage\""
+          },
+          {
+            "_id": "rule-3",
+            "_description": "Stale data - freshness > 60 days",
+            "in-months": "",
+            "in-freshness": "> 60",
+            "in-gst-filed": "",
+            "out-outcome": "\"fail\"",
+            "out-reason": "\"data_too_stale\""
+          },
+          {
+            "_id": "rule-4",
+            "_description": "Insufficient months",
+            "in-months": "< 3",
+            "in-freshness": "",
+            "in-gst-filed": "",
+            "out-outcome": "\"fail\"",
+            "out-reason": "\"insufficient_months\""
+          },
+          {
+            "_id": "rule-5",
+            "_description": "GST not filed - fail",
+            "in-months": "",
+            "in-freshness": "",
+            "in-gst-filed": "== false",
+            "out-outcome": "\"fail\"",
+            "out-reason": "\"gst_not_filed\""
+          }
+        ],
+        "inputs": [
+          { "id": "in-months", "field": "months_available", "name": "Months of Data" },
+          { "id": "in-freshness", "field": "data_freshness_days", "name": "Data Freshness (days)" },
+          { "id": "in-gst-filed", "field": "gst_returns_filed", "name": "GST Returns Filed" }
+        ],
+        "outputs": [
+          { "id": "out-outcome", "field": "outcome", "name": "Outcome" },
+          { "id": "out-reason", "field": "reason", "name": "Reason" }
+        ]
+      }
+    },
+    {
+      "id": "output",
+      "name": "Response",
+      "type": "outputNode",
+      "position": { "x": 700, "y": 200 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "input", "targetId": "sufficiency-table" },
+    { "id": "e2", "sourceId": "sufficiency-table", "targetId": "output" }
+  ]
+}
