@@ -1,1 +1,1 @@
-# libs/ocen_client — OCEN 4.0 LA API client — PHASE 3
+"""OCEN 4.0 network client — authentication, signing, registry, and API transactions."""
