@@ -71,13 +71,13 @@ make worker
 
 ### Testing without external services
 
-By default, the platform runs with **mocked external services** — no need for OCEN credentials, Account Aggregator access, or GST portal connectivity. This is controlled by:
+The platform supports a **sandbox mode** with simulated external services — no need for OCEN credentials, Account Aggregator access, or GST portal connectivity. This is controlled by:
 
 ```
-OCEN_USE_MOCKS=true  (default)
+INTEGRATION_MODE=sandbox
 ```
 
-All 71 tests run against mocks and pass without any network access.
+This is a required config — the app will not start without it set to either `sandbox` or `live`. All tests run in sandbox mode and pass without any network access.
 
 ## Key Concepts Explained
 
@@ -166,10 +166,10 @@ tests/                → 71 automated tests
 2. Reference it in the workflow by name
 3. Write a test in `tests/`
 
-### Switch from mocks to real OCEN
+### Switch from sandbox to live OCEN
 
 1. Set environment variables (OCEN_CLIENT_ID, OCEN_CLIENT_SECRET, etc.)
-2. Set `OCEN_USE_MOCKS=false`
+2. Set `INTEGRATION_MODE=live`
 3. Place your RSA keypair at the path specified by `OCEN_KEYPAIR_PATH`
 
 ### Run a specific test
@@ -184,5 +184,5 @@ uv run pytest tests/test_ocen_client/test_jws_signer.py -v
 |-------|----------|
 | Tests fail with import errors | Run `uv sync` to install dependencies |
 | Temporal workflow hangs | Check `make worker` is running |
-| "Real OCEN client not yet implemented" | Set `OCEN_USE_MOCKS=true` |
+| "Real OCEN client not yet implemented" | Set `INTEGRATION_MODE=sandbox` |
 | Pre-existing event_producer test error | Known issue — Kafka mock limitation, safe to ignore |

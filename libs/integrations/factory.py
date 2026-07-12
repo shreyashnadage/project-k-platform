@@ -1,9 +1,17 @@
-"""Factory for creating integration clients — real or mock based on config.
+"""Factory for creating integration clients — real or sandbox based on config.
+
+The integration mode is controlled by the INTEGRATION_MODE environment variable:
+  - "sandbox" → loads clients from the sandbox/ package (simulated responses)
+  - "live"    → loads real client implementations
+
+There is NO default. If INTEGRATION_MODE is not set, the application fails
+at startup with a clear error. This prevents accidental sandbox usage in
+production or silent failures from misconfiguration.
 
 Usage:
     from libs.integrations.factory import get_aa_client, get_ocen_client
 
-    aa = get_aa_client()  # Returns mock or real based on OCEN_USE_MOCKS env var
+    aa = get_aa_client()  # Returns sandbox or real based on INTEGRATION_MODE
 """
 
 from __future__ import annotations
@@ -15,23 +23,30 @@ if TYPE_CHECKING:
     from libs.integrations.protocols import AAClient, GSTClient, LenderCallbackClient, OCENClient
 
 
-def _use_mocks() -> bool:
-    return os.environ.get("OCEN_USE_MOCKS", "true").lower() in ("true", "1", "yes")
+def _get_mode() -> str:
+    mode = os.environ.get("INTEGRATION_MODE", "")
+    if mode not in ("sandbox", "live"):
+        msg = (
+            f"INTEGRATION_MODE environment variable must be set to 'sandbox' or 'live'. "
+            f"Got: {mode!r}. Set it in your .env file or deployment config."
+        )
+        raise RuntimeError(msg)
+    return mode
 
 
 def get_aa_client() -> AAClient:
-    if _use_mocks():
-        from libs.mocks.aa_client import MockAAClient
+    if _get_mode() == "sandbox":
+        from sandbox.clients.aa_client import SandboxAAClient
 
-        return MockAAClient()
+        return SandboxAAClient()
     raise NotImplementedError("Real AA client (Setu/Perfios) not yet implemented")
 
 
 def get_ocen_client() -> OCENClient:
-    if _use_mocks():
-        from libs.mocks.ocen_client import MockOCENClient
+    if _get_mode() == "sandbox":
+        from sandbox.clients.ocen_client import SandboxOCENClient
 
-        return MockOCENClient()
+        return SandboxOCENClient()
     raise NotImplementedError("Real OCEN client not yet implemented")
 
 
@@ -43,16 +58,16 @@ def get_ocen_network_client() -> OcenNetworkClient:  # noqa: F821
 
 
 def get_gst_client() -> GSTClient:
-    if _use_mocks():
-        from libs.mocks.gst_client import MockGSTClient
+    if _get_mode() == "sandbox":
+        from sandbox.clients.gst_client import SandboxGSTClient
 
-        return MockGSTClient()
+        return SandboxGSTClient()
     raise NotImplementedError("Real GST client not yet implemented")
 
 
 def get_lender_client(auto_approve: bool = True) -> LenderCallbackClient:
-    if _use_mocks():
-        from libs.mocks.lender_client import MockLenderCallbackClient
+    if _get_mode() == "sandbox":
+        from sandbox.clients.lender_client import SandboxLenderClient
 
-        return MockLenderCallbackClient(auto_approve=auto_approve)
+        return SandboxLenderClient(auto_approve=auto_approve)
     raise NotImplementedError("Real lender callback client not yet implemented")

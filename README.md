@@ -117,7 +117,7 @@ All configuration via environment variables (see `.env.example`):
 
 | Variable | Purpose |
 |----------|---------|
-| `OCEN_USE_MOCKS` | `true` (default) uses mock clients, `false` hits real APIs |
+| `INTEGRATION_MODE` | **Required.** `sandbox` (simulated clients) or `live` (real APIs) |
 | `OCEN_CLIENT_ID` | OAuth2 client ID for OCEN network |
 | `OCEN_CLIENT_SECRET` | OAuth2 client secret |
 | `OCEN_PARTICIPANT_ID` | Your participant role ID on OCEN |

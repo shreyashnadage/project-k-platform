@@ -1,16 +1,18 @@
-"""Mock Account Aggregator client — simulates Setu/Perfios responses."""
+"""Sandbox Account Aggregator client — simulates Setu/Perfios responses."""
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 import structlog
 
 from libs.integrations.protocols import ConsentResponse, ConsentStatus, FinancialData
+from sandbox.config import SANDBOX_AA_AUTO_APPROVE, SANDBOX_RESPONSE_DELAY_MS
 
 logger = structlog.get_logger()
 
-MOCK_BANK_STATEMENT = {
+SANDBOX_BANK_STATEMENT = {
     "account_type": "SAVINGS",
     "bank_name": "State Bank of India",
     "months": [
@@ -23,7 +25,7 @@ MOCK_BANK_STATEMENT = {
     ],
 }
 
-MOCK_GST_RETURNS = [
+SANDBOX_GST_RETURNS = [
     {"period": "2026-01", "gstr1_filed": True, "gstr3b_filed": True, "turnover": 850000},
     {"period": "2026-02", "gstr1_filed": True, "gstr3b_filed": True, "turnover": 920000},
     {"period": "2026-03", "gstr1_filed": True, "gstr3b_filed": True, "turnover": 780000},
@@ -33,25 +35,37 @@ MOCK_GST_RETURNS = [
 ]
 
 
-class MockAAClient:
-    """Mock AA client returning realistic Kolhapur-belt MSME financial data."""
+class SandboxAAClient:
+    """Sandbox AA client returning realistic Kolhapur-belt MSME financial data."""
 
     def __init__(self) -> None:
         self._consents: dict[str, str] = {}
 
+    async def _simulate_delay(self) -> None:
+        if SANDBOX_RESPONSE_DELAY_MS > 0:
+            await asyncio.sleep(SANDBOX_RESPONSE_DELAY_MS / 1000)
+
     async def create_consent(
         self, vendor_gstin: str, purpose: str, duration_months: int
     ) -> ConsentResponse:
-        consent_id = f"mock-consent-{uuid.uuid4().hex[:8]}"
-        self._consents[consent_id] = "approved"
-        logger.info("mock_aa_consent_created", consent_id=consent_id, gstin=vendor_gstin)
+        await self._simulate_delay()
+        consent_id = f"sandbox-consent-{uuid.uuid4().hex[:8]}"
+        status = "approved" if SANDBOX_AA_AUTO_APPROVE else "pending"
+        self._consents[consent_id] = status
+        logger.info(
+            "sandbox_aa_consent_created",
+            consent_id=consent_id,
+            gstin=vendor_gstin,
+            status=status,
+        )
         return ConsentResponse(
             consent_id=consent_id,
-            redirect_url=f"https://mock-aa.example/consent/{consent_id}",
-            status="approved",
+            redirect_url=f"https://sandbox-aa.local/consent/{consent_id}",
+            status=status,
         )
 
     async def check_consent_status(self, consent_id: str) -> ConsentStatus:
+        await self._simulate_delay()
         status = self._consents.get(consent_id, "not_found")
         return ConsentStatus(
             consent_id=consent_id,
@@ -60,10 +74,11 @@ class MockAAClient:
         )
 
     async def fetch_financial_data(self, consent_id: str) -> FinancialData:
-        logger.info("mock_aa_data_fetched", consent_id=consent_id)
+        await self._simulate_delay()
+        logger.info("sandbox_aa_data_fetched", consent_id=consent_id)
         return FinancialData(
             consent_id=consent_id,
             months_available=6,
-            bank_statements=[MOCK_BANK_STATEMENT],
-            gst_returns=MOCK_GST_RETURNS,
+            bank_statements=[SANDBOX_BANK_STATEMENT],
+            gst_returns=SANDBOX_GST_RETURNS,
         )
