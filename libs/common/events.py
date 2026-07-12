@@ -55,6 +55,17 @@ class EventType(enum.StrEnum):
     LOAN_CLOSED = "loan.closed"
     LOAN_REJECTED = "loan.rejected"
 
+    # Ops actions
+    OPS_HOLD_APPLIED = "ops.hold_applied"
+    OPS_HOLD_RELEASED = "ops.hold_released"
+    OPS_FLAG_ADDED = "ops.flag_added"
+    OPS_ESCALATED = "ops.escalated"
+
+    # Vendor / Anchor onboarding
+    VENDOR_INVITED = "vendor.invited"
+    VENDOR_ACTIVATED = "vendor.activated"
+    ANCHOR_ROUTING_UPDATED = "anchor.routing_updated"
+
     # DDP
     DDP_PACKAGE_ISSUED = "ddp.package_issued"
     DDP_VC_ISSUED = "ddp.vc_issued"

@@ -28,15 +28,18 @@ from .models import (
     LoanApplicationResponse,
     LoanApplicationStatus,
 )
+from .ops_api import ops_router, vendors_router
 from .service import get_gateway_service
 
 configure_logging(json_output=True)
 init_tracing(service_name="borrower-gateway")
 logger = structlog.get_logger()
 
-app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.1.0")
+app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.2.0")
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.include_router(ops_router)
+app.include_router(vendors_router)
 
 gateway_service = get_gateway_service()
 ocen_client = OcenNetworkClient()

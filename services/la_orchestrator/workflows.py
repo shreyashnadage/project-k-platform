@@ -43,11 +43,25 @@ class LoanOriginationWorkflow:
 
     def __init__(self) -> None:
         self._lender_response: dict | None = None
+        self._ops_hold: bool = False
+        self._ops_hold_reason: str = ""
 
     @workflow.signal
     async def lender_response_received(self, response: dict) -> None:
         """Signal sent by the OCEN callback endpoint when lender responds."""
         self._lender_response = response
+
+    @workflow.signal
+    async def ops_hold_requested(self, reason: str) -> None:
+        """Signal from ops to hold the application before OCEN submission."""
+        self._ops_hold = True
+        self._ops_hold_reason = reason
+
+    @workflow.signal
+    async def ops_hold_released(self) -> None:
+        """Signal from ops to release a held application."""
+        self._ops_hold = False
+        self._ops_hold_reason = ""
 
     @workflow.run
     async def run(self, loan_application_id: str) -> dict:
@@ -156,6 +170,20 @@ class LoanOriginationWorkflow:
                 "gate": "d3_lender_prescreen",
                 "reason": "no_eligible_lenders",
             }
+
+        # ── Ops Hold Check (between D3 and OCEN submit) ─────
+        if self._ops_hold:
+            try:
+                await workflow.wait_condition(
+                    lambda: not self._ops_hold,
+                    timeout=timedelta(hours=72),
+                )
+            except TimeoutError:
+                return {
+                    "status": "rejected",
+                    "gate": "ops_hold",
+                    "reason": "ops_hold_expired",
+                }
 
         # ── Submit to Lender(s) via OCEN ─────────────────────
         # Use the mock-based client for quick sync flow
