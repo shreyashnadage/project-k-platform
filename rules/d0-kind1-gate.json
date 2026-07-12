@@ -1,0 +1,74 @@
+{
+  "id": "d0-kind1-gate",
+  "name": "D0 Kind 1 Eligibility Gate",
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "input",
+      "name": "Request",
+      "type": "inputNode",
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "kind1-table",
+      "name": "Kind 1 Eligibility Gate",
+      "type": "decisionTableNode",
+      "position": { "x": 400, "y": 200 },
+      "content": {
+        "hitPolicy": "first",
+        "rules": [
+          {
+            "_id": "rule-1",
+            "_description": "All conditions met - Kind 1 pass",
+            "in-irn": "== true",
+            "in-ims": "== \"accepted\"",
+            "in-routing": "== true",
+            "in-gstin": "== true",
+            "out-outcome": "\"pass\"",
+            "out-reason": "\"kind1_all_conditions_met\""
+          },
+          {
+            "_id": "rule-2",
+            "_description": "IMS deemed accepted - pass with flag",
+            "in-irn": "== true",
+            "in-ims": "== \"deemed_accepted\"",
+            "in-routing": "== true",
+            "in-gstin": "== true",
+            "out-outcome": "\"flag\"",
+            "out-reason": "\"deemed_accepted_weaker_signal\""
+          },
+          {
+            "_id": "rule-3",
+            "_description": "Default catch-all - fail",
+            "in-irn": "",
+            "in-ims": "",
+            "in-routing": "",
+            "in-gstin": "",
+            "out-outcome": "\"fail\"",
+            "out-reason": "\"kind1_conditions_not_met\""
+          }
+        ],
+        "inputs": [
+          { "id": "in-irn", "field": "irn_valid", "name": "IRN Valid" },
+          { "id": "in-ims", "field": "ims_status", "name": "IMS Status" },
+          { "id": "in-routing", "field": "repayment_routing_active", "name": "Repayment Routing Active" },
+          { "id": "in-gstin", "field": "gstin_valid", "name": "GSTIN Valid" }
+        ],
+        "outputs": [
+          { "id": "out-outcome", "field": "outcome", "name": "Outcome" },
+          { "id": "out-reason", "field": "reason", "name": "Reason" }
+        ]
+      }
+    },
+    {
+      "id": "output",
+      "name": "Response",
+      "type": "outputNode",
+      "position": { "x": 700, "y": 200 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "sourceId": "input", "targetId": "kind1-table" },
+    { "id": "e2", "sourceId": "kind1-table", "targetId": "output" }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "realm": "ocen-platform",
+  "enabled": true,
+  "displayName": "OCEN Platform",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "roles": {
+    "realm": [
+      { "name": "platform-admin", "description": "Full platform administration" },
+      { "name": "anchor-manager", "description": "Manage anchor relationships and VDP" },
+      { "name": "lender-viewer", "description": "View portfolio and reports (lender-facing)" },
+      { "name": "operations", "description": "Day-to-day loan operations" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "la-orchestrator",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-secret-la-orchestrator",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "ddp-engine",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "dev-secret-ddp-engine",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "admin-ui",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@ocen-platform.local",
+      "enabled": true,
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "credentials": [
+        { "type": "password", "value": "admin_dev", "temporary": false }
+      ],
+      "realmRoles": ["platform-admin"]
+    }
+  ]
+}

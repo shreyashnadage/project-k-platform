@@ -1,0 +1,146 @@
+# Local development stack — OCEN Platform
+# Usage: make up  (or docker compose up -d)
+
+services:
+  # ─── PostgreSQL ──────────────────────────���────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ocen-postgres
+    environment:
+      POSTGRES_USER: ocen
+      POSTGRES_PASSWORD: ocen_dev
+      POSTGRES_DB: ocen_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocen"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Apache AGE (Graph extension on Postgres) ─────────────
+  # AGE runs as a Postgres extension. For local dev, use the
+  # official AGE Docker image which bundles PG + AGE.
+  postgres-age:
+    image: apache/age:PG16_latest
+    container_name: ocen-postgres-age
+    environment:
+      POSTGRES_USER: ocen
+      POSTGRES_PASSWORD: ocen_dev
+      POSTGRES_DB: ocen_graph
+    ports:
+      - "5433:5432"
+    volumes:
+      - age_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocen"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Redpanda (Kafka-compatible event bus, no JVM) ────────
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.12
+    container_name: ocen-redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --smp 1
+      - --memory 512M
+      - --mode dev-container
+    ports:
+      - "19092:19092"   # Kafka API
+      - "18081:18081"   # Schema Registry
+      - "9644:9644"     # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  # Redpanda Console (topic browser / schema viewer)
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    container_name: ocen-redpanda-console
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      SCHEMA_REGISTRY_URLS: http://redpanda:8081
+    ports:
+      - "8180:8080"
+    depends_on:
+      - redpanda
+
+  # ─── Temporal (Durable workflow orchestration) ────────────
+  temporal-db:
+    image: postgres:16-alpine
+    container_name: ocen-temporal-db
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal_dev
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    container_name: ocen-temporal
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal_dev
+      POSTGRES_SEEDS: temporal-db
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/development.yaml
+    ports:
+      - "7233:7233"    # gRPC frontend
+    volumes:
+      - ./infra/docker/temporal-dynamic-config.yaml:/etc/temporal/config/dynamicconfig/development.yaml
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    container_name: ocen-temporal-ui
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8233:8080"
+    depends_on:
+      - temporal
+
+  # ─── Keycloak (Internal IAM) ──────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: ocen-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/ocen_platform
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: ocen
+      KC_DB_PASSWORD: ocen_dev
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./infra/docker/keycloak-realm.json:/opt/keycloak/data/import/realm.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  age_data:
+  redpanda_data:
+  temporal_db_data:
