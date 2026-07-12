@@ -1,0 +1,131 @@
+# DPDP Compliance Cutover Checklist
+# Execute in order. Each phase is independently deployable.
+#
+# Target: Production readiness before 13 May 2027 enforcement date.
+
+phases:
+  - id: phase_1_encryption
+    name: "Field-Level Encryption"
+    status: ready
+    steps:
+      - description: "Set DPDP_ENCRYPTION_KEY in Secrets Manager"
+        command: "aws secretsmanager create-secret --name ocen/dpdp-encryption-key --secret-string $(python -c 'import secrets; print(secrets.token_hex(32))')"
+        verify: "aws secretsmanager get-secret-value --secret-id ocen/dpdp-encryption-key | jq -r '.SecretString | length'"
+        expected: "64"
+
+      - description: "Set DPDP_BLIND_INDEX_KEY in Secrets Manager"
+        command: "aws secretsmanager create-secret --name ocen/dpdp-blind-index-key --secret-string $(python -c 'import secrets; print(secrets.token_hex(32))')"
+
+      - description: "Run migration 002 (add encrypted columns)"
+        command: "alembic upgrade 002"
+        verify: "psql -c \"SELECT column_name FROM information_schema.columns WHERE table_name='vendors' AND column_name='gstin_enc'\""
+
+      - description: "Run migration 003 (backfill — during low traffic)"
+        command: "alembic upgrade 003"
+        verify: "psql -c \"SELECT count(*) FROM vendors WHERE gstin_enc IS NULL\""
+        expected: "0"
+        notes: "Run during 2-4 AM IST. Monitor pg_stat_activity. Batch size 1000 rows/commit."
+
+      - description: "Verify blind index queries work"
+        command: "python -c \"from dpdp_core.encryption.blind_index import compute_blind_index; print(compute_blind_index('27AADCB2230M1ZT', 'vendor_gstin'))\""
+        notes: "Compare output against gstin_idx column values"
+
+      - description: "Deploy dual-read code (reads from _enc, falls back to plaintext)"
+        notes: "Application code already supports both — just deploy latest"
+
+      - description: "Run migration 004 (drop plaintext — IRREVERSIBLE)"
+        command: "alembic upgrade 004"
+        prerequisites:
+          - "Migration 003 verified (zero NULL in _enc columns)"
+          - "Application fully reading from encrypted columns"
+          - "No in-flight Temporal workflows referencing old column names"
+        rollback: "alembic downgrade 003 (restores plaintext columns as NULL — requires re-backfill from encrypted)"
+
+  - id: phase_2_consent
+    name: "Consent Gate Enforcement"
+    status: ready
+    steps:
+      - description: "Consent gate already wired as hard block before D0"
+        verify: "grep -r 'check_dpdp_consent' services/la_orchestrator/workflows.py"
+        notes: "Active when data_principal_id is provided in LoanOriginationInput"
+
+      - description: "Verify consent check in sandbox"
+        command: "INTEGRATION_MODE=sandbox DPDP_SANDBOX_CONSENT_DENIED=true uv run python -m pytest tests/test_workflow.py::test_workflow_consent_denied -v"
+
+  - id: phase_3_rbac
+    name: "RBAC Cutover (OPS_API_KEY → JWT)"
+    status: ready
+    steps:
+      - description: "Configure Keycloak JWKS endpoint"
+        env_vars:
+          KEYCLOAK_JWKS_URL: "https://keycloak.ocen-platform.internal/realms/ocen-platform/protocol/openid-connect/certs"
+          KEYCLOAK_ISSUER: "https://keycloak.ocen-platform.internal/realms/ocen-platform"
+          KEYCLOAK_AUDIENCE: "la-orchestrator"
+
+      - description: "Create Keycloak roles"
+        roles:
+          - platform-admin
+          - operations
+          - lender-viewer
+          - anchor-manager
+        notes: "Map to existing Frappe users via Keycloak user federation or manual assignment"
+
+      - description: "Enable RBAC in staging"
+        env_vars:
+          DPDP_RBAC_ENABLED: "true"
+        verify: "curl -s -o /dev/null -w '%{http_code}' https://staging.ocen-platform.internal/ops/applications"
+        expected: "401"
+
+      - description: "Test with valid JWT"
+        verify: |
+          TOKEN=$(curl -s -X POST https://keycloak.../token -d 'grant_type=client_credentials&client_id=...&client_secret=...' | jq -r .access_token)
+          curl -s -H "Authorization: Bearer $TOKEN" https://staging.ocen-platform.internal/ops/applications | jq .status
+
+      - description: "Remove OPS_API_KEY from .env and Secrets Manager"
+        notes: "Only after all Frappe webhook configs updated to use JWT"
+        deprecated_env: "OPS_API_KEY"
+
+  - id: phase_4_dsr
+    name: "Data Subject Rights"
+    status: ready
+    steps:
+      - description: "DSR workflow registered and active"
+        verify: "curl -X POST https://platform/dpdp/rights/submit -d '{\"data_principal_id\": \"test\", \"right_type\": \"access\"}'"
+        notes: "Protected by RBAC — requires platform-admin JWT"
+
+      - description: "Schedule retention cron"
+        command: |
+          temporal schedule create \
+            --schedule-id retention-daily \
+            --cron '0 2 * * *' \
+            --workflow-type RetentionEnforcementWorkflow \
+            --task-queue loan-origination \
+            --input '{"dry_run": false}'
+        notes: "Runs daily at 2 AM IST"
+
+      - description: "Configure breach detection consumer"
+        notes: "Deploy audit log Redpanda consumer that triggers BreachDetectionWorkflow on threshold breach"
+        env_vars:
+          DPDP_DPBI_NOTIFICATION_URL: "https://dpbi.gov.in/api/v1/breach-notification"
+
+  - id: phase_5_validation
+    name: "Pre-Enforcement Validation"
+    status: pending
+    deadline: "2027-04-01"
+    steps:
+      - description: "Run full scenario matrix in staging"
+        command: "DPDP_SANDBOX_SCENARIO=consent_denied uv run python -m pytest tests/test_dpdp_scenarios.py -v"
+
+      - description: "Verify no plaintext PII in database"
+        command: "psql -c \"SELECT count(*) FROM information_schema.columns WHERE table_name IN ('vendors','anchors','loan_applications') AND column_name IN ('name','gstin','udyam_number','vendor_gstin','anchor_gstin')\""
+        expected: "0"
+
+      - description: "Verify all consent records have text hash"
+        command: "psql -c \"SELECT count(*) FROM consent_records WHERE consent_text_hash IS NULL OR consent_text_hash = ''\""
+        expected: "0"
+
+      - description: "Verify retention cron has run at least once"
+        command: "temporal schedule describe --schedule-id retention-daily | grep last-action"
+
+      - description: "Legal sign-off on DPDP compliance posture"
+        notes: "External counsel review of consent text, retention policies, and breach response SLA"

@@ -25,6 +25,17 @@ class SandboxConsentClient:
     async def check_consent(
         self, data_principal_id: str, purposes: list[str]
     ) -> ConsentCheckResult:
+        # Scenario-driven response takes priority
+        from sandbox.scenarios.loader import get_active_scenario
+
+        scenario = get_active_scenario()
+        if scenario:
+            response = scenario.next_response("consent_check")
+            if response is not None:
+                allowed = response.get("allowed", True)
+                reason = response.get("reason", "")
+                return ConsentCheckResult(allowed=allowed, reason=reason)
+
         denied = os.environ.get("DPDP_SANDBOX_CONSENT_DENIED", "false").lower() == "true"
 
         if denied:
