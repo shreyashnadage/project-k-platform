@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from uuid import uuid4
 
 import pytest
 
@@ -18,7 +19,6 @@ def producer():
 
     p = EventProducer(
         bootstrap_servers="localhost:19092",
-        topic="ocen.trade-events.v1",
     )
     yield p
     p.flush()
@@ -43,12 +43,15 @@ def consumer():
 def test_produce_and_consume_event(producer, consumer):
     """Round-trip: produce a TradeEvent, consume it back."""
     event = invoice_kind1_attested(
-        invoice_id="inv-test-001",
-        anchor_id="anchor-001",
-        vendor_id="vendor-001",
+        invoice_id=uuid4(),
+        loan_application_id=uuid4(),
+        irn="a" * 64,
+        ims_status="ACCEPTED",
+        repayment_routing_active=True,
+        is_kind1=True,
     )
 
-    producer.produce(event)
+    producer.publish(event)
     producer.flush()
 
     # Poll for the message (timeout after 10s)
@@ -62,4 +65,4 @@ def test_produce_and_consume_event(producer, consumer):
     assert msg is not None and msg.error() is None
     payload = json.loads(msg.value().decode("utf-8"))
     assert payload["event_type"] == EventType.INVOICE_KIND1_ATTESTED.value
-    assert payload["payload"]["invoice_id"] == "inv-test-001"
+    assert payload["payload"]["ims_status"] == "ACCEPTED"
