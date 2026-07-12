@@ -35,6 +35,13 @@ def get_ocen_client() -> OCENClient:
     raise NotImplementedError("Real OCEN client not yet implemented")
 
 
+def get_ocen_network_client() -> OcenNetworkClient:  # noqa: F821
+    """Get the real OCEN network client (protocol-level, not mock interface)."""
+    from libs.ocen_client.network_client import OcenNetworkClient
+
+    return OcenNetworkClient()
+
+
 def get_gst_client() -> GSTClient:
     if _use_mocks():
         from libs.mocks.gst_client import MockGSTClient

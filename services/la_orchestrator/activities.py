@@ -17,7 +17,19 @@ from dataclasses import dataclass
 import structlog
 from temporalio import activity
 
-from libs.integrations.factory import get_aa_client, get_gst_client, get_ocen_client
+from libs.integrations.factory import (
+    get_aa_client,
+    get_gst_client,
+    get_ocen_client,
+    get_ocen_network_client,
+)
+from libs.ocen_client.models.journey import (
+    Borrower,
+    CreateLoanApplicationRequest,
+)
+from libs.ocen_client.models.journey import (
+    LoanApplication as OcenLoanApplication,
+)
 from libs.zen_rules.engine import ZenDecisionEngine
 
 logger = structlog.get_logger()
@@ -152,3 +164,53 @@ async def validate_gst(gstin: str) -> dict:
     gst_client = get_gst_client()
     result = await gst_client.validate_gstin(gstin)
     return {"gstin": result.gstin, "valid": result.valid, "trade_name": result.trade_name}
+
+
+# ─── OCEN Network Protocol Activities ─────────────────────────
+
+
+@dataclass
+class SubmitOcenLoanRequestInput:
+    loan_application_id: str
+    borrower_gstin: str = ""
+    borrower_name: str = ""
+    requested_amount: float = 0.0
+    tenure_months: int = 3
+
+
+@activity.defn(name="submit_ocen_loan_request")
+async def submit_ocen_loan_request(input: SubmitOcenLoanRequestInput) -> dict:
+    """Submit loan application to lenders via OCEN 4.0 network protocol.
+
+    Builds a CreateLoanApplicationRequest with proper MetaData, signs it,
+    and POSTs to all lenders in the product network.
+    Returns ACK trace IDs — actual decisions arrive asynchronously.
+    """
+    log = logger.bind(loan_application_id=input.loan_application_id)
+    log.info("submitting_ocen_loan_request")
+
+    network_client = get_ocen_network_client()
+    metadata = network_client.build_metadata()
+    product_data = network_client.build_product_data()
+
+    request = CreateLoanApplicationRequest(
+        metadata=metadata,
+        product_data=product_data,
+        loan_applications=[
+            OcenLoanApplication(
+                loan_application_id=input.loan_application_id,
+                borrower=Borrower(
+                    name=input.borrower_name,
+                    gstin=input.borrower_gstin,
+                ),
+            ),
+        ],
+    )
+
+    acks = await network_client.submit_loan_application(request)
+
+    return {
+        "submitted": True,
+        "ack_count": len(acks),
+        "trace_ids": [ack.trace_id for ack in acks],
+    }

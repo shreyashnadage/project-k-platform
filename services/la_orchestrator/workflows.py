@@ -23,6 +23,7 @@ with workflow.unsafe.imports_passed_through():
     from services.la_orchestrator.activities import (
         EvaluateDecisionInput,
         FetchAADataInput,
+        SubmitOcenLoanRequestInput,
         SubmitToLenderInput,
     )
 
@@ -39,6 +40,14 @@ class LoanOriginationWorkflow:
     pre-disbursement gates (read-only). Post-disbursement compensation
     (e.g. clawback) would be a separate workflow.
     """
+
+    def __init__(self) -> None:
+        self._lender_response: dict | None = None
+
+    @workflow.signal
+    async def lender_response_received(self, response: dict) -> None:
+        """Signal sent by the OCEN callback endpoint when lender responds."""
+        self._lender_response = response
 
     @workflow.run
     async def run(self, loan_application_id: str) -> dict:
@@ -149,6 +158,7 @@ class LoanOriginationWorkflow:
             }
 
         # ── Submit to Lender(s) via OCEN ─────────────────────
+        # Use the mock-based client for quick sync flow
         submit_result = await workflow.execute_activity(
             "submit_to_lender",
             SubmitToLenderInput(
@@ -159,21 +169,54 @@ class LoanOriginationWorkflow:
             retry_policy=retry,
         )
 
-        # ── Await Lender Decision (D4 — theirs, not ours) ────
-        # In production this would be a signal/update from an OCEN callback.
-        # For now, the submit activity returns the lender's response.
+        # Also submit via OCEN network protocol (async — real lenders)
+        await workflow.execute_activity(
+            "submit_ocen_loan_request",
+            SubmitOcenLoanRequestInput(
+                loan_application_id=loan_application_id,
+            ),
+            start_to_close_timeout=timedelta(minutes=2),
+            retry_policy=retry,
+        )
 
-        if not submit_result.get("offer_received"):
+        # ── Await Lender Decision (D4 — theirs, not ours) ────
+        # In mock mode, submit_to_lender returns the response immediately.
+        # In production, lender responds async via OCEN createLoanResponse
+        # which signals this workflow via lender_response_received.
+
+        if submit_result.get("offer_received"):
+            return {
+                "status": "offer_received",
+                "offer": submit_result["offer"],
+                "matched_lenders": matched_lenders,
+            }
+
+        # Wait for async lender signal (up to 24h in production)
+        try:
+            await workflow.wait_condition(
+                lambda: self._lender_response is not None,
+                timeout=timedelta(hours=24),
+            )
+        except TimeoutError:
             return {
                 "status": "rejected",
                 "gate": "d4_lender_underwriting",
-                "reason": "lender_declined",
+                "reason": "lender_response_timeout",
+            }
+
+        if self._lender_response and self._lender_response.get("offer"):
+            return {
+                "status": "offer_received",
+                "offer": self._lender_response["offer"],
+                "matched_lenders": matched_lenders,
             }
 
         return {
-            "status": "offer_received",
-            "offer": submit_result["offer"],
-            "matched_lenders": matched_lenders,
+            "status": "rejected",
+            "gate": "d4_lender_underwriting",
+            "reason": self._lender_response.get("reason", "lender_declined")
+            if self._lender_response
+            else "lender_declined",
         }
 
         # Post-offer steps (acceptance, e-sign, disbursement, repayment
