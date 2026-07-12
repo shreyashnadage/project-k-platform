@@ -69,10 +69,9 @@ class OcenJWSSigner:
         header_b64 = parts[0]
         signature_b64 = parts[2]
 
-        signing_input = header_b64.encode() + b"." + payload
-        signature = _base64url_decode(signature_b64)
-
         try:
+            signing_input = header_b64.encode() + b"." + payload
+            signature = _base64url_decode(signature_b64)
             self._public_key.verify(signature, signing_input, padding.PKCS1v15(), hashes.SHA256())
             return True
         except Exception:

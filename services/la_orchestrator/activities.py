@@ -200,8 +200,9 @@ async def submit_ocen_loan_request(input: SubmitOcenLoanRequestInput) -> dict:
             OcenLoanApplication(
                 loan_application_id=input.loan_application_id,
                 borrower=Borrower(
+                    primaryId=input.borrower_gstin or "UNKNOWN",
+                    primary_id_type="GSTIN",
                     name=input.borrower_name,
-                    gstin=input.borrower_gstin,
                 ),
             ),
         ],
