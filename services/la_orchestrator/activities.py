@@ -16,12 +16,15 @@ import threading
 from dataclasses import dataclass
 
 import hashlib
+import os
+from uuid import UUID
 
 import orjson
 import structlog
 from temporalio import activity
 
-from libs.common.events import EventType, TradeEvent
+from libs.common.event_producer import EventProducer
+from libs.common.events import loan_decision_evaluated
 from libs.integrations.factory import (
     get_aa_client,
     get_gst_client,
@@ -41,6 +44,18 @@ logger = structlog.get_logger()
 
 _zen_engine: ZenDecisionEngine | None = None
 _zen_lock = threading.Lock()
+_event_producer: EventProducer | None = None
+_producer_lock = threading.Lock()
+
+
+def get_event_producer() -> EventProducer:
+    global _event_producer
+    if _event_producer is None:
+        with _producer_lock:
+            if _event_producer is None:
+                bootstrap = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
+                _event_producer = EventProducer(bootstrap_servers=bootstrap)
+    return _event_producer
 
 
 def get_zen_engine() -> ZenDecisionEngine:
@@ -96,6 +111,20 @@ async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
         result = get_zen_engine().evaluate(input.ruleset_name, input.context)
         input_hash = hashlib.sha256(orjson.dumps(input.context, option=orjson.OPT_SORT_KEYS)).hexdigest()[:16]
         receipt_id = f"receipt-{input.loan_application_id}-{input.gate}"
+
+        try:
+            event = loan_decision_evaluated(
+                loan_application_id=UUID(input.loan_application_id),
+                gate=input.gate,
+                outcome=result.output.get("outcome", "pass"),
+                ruleset_hash=result.ruleset_hash,
+                input_hash=input_hash,
+                receipt_id=UUID(int=hash(receipt_id) % (2**128)),
+                workflow_id=activity.info().workflow_id,
+            )
+            get_event_producer().publish(event)
+        except Exception as e:
+            log.warning("decision_receipt_publish_failed", error=str(e))
 
         log.info(
             "decision_receipt_emitted",

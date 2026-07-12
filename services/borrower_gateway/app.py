@@ -51,8 +51,28 @@ async def get_temporal_client() -> TemporalClient:
 
 
 @app.post("/loans/apply", response_model=LoanApplicationResponse)
-def apply_for_loan(request: LoanApplicationRequest) -> LoanApplicationResponse:
-    return gateway_service.initiate_application(request)
+async def apply_for_loan(request: LoanApplicationRequest) -> LoanApplicationResponse:
+    response = gateway_service.initiate_application(request)
+
+    try:
+        temporal = await get_temporal_client()
+        await temporal.start_workflow(
+            "LoanOriginationWorkflow",
+            {
+                "loan_application_id": str(response.application_id),
+                "vendor_gstin": request.vendor_gstin,
+                "anchor_gstin": request.anchor_gstin,
+                "invoice_id": str(request.invoice_id),
+                "amount_requested": float(request.amount_requested),
+            },
+            id=response.workflow_id,
+            task_queue=os.environ.get("TEMPORAL_TASK_QUEUE", "loan-origination"),
+        )
+        logger.info("workflow_started", workflow_id=response.workflow_id)
+    except Exception as e:
+        logger.error("workflow_start_failed", error=str(e), workflow_id=response.workflow_id)
+
+    return response
 
 
 class ApplicationStatusRequest(BaseModel):
