@@ -1,0 +1,16 @@
+[Unit]
+Description=OCEN Platform - Borrower Gateway API
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/platform
+Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin
+ExecStart=/root/.local/bin/uv run uvicorn services.borrower_gateway.app:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

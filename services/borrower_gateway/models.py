@@ -52,3 +52,26 @@ class LoanOfferResponse(BaseModel):
     interest_rate: Decimal
     tenure_days: int
     terms: dict[str, str] = Field(default_factory=dict)
+
+
+class InvoiceCapturedRequest(BaseModel):
+    """Invoice captured from ERP (ERPNext/Frappe connector)."""
+
+    irn: str = Field(..., min_length=64, max_length=64)
+    invoice_number: str
+    vendor_gstin: str = Field(..., min_length=15, max_length=15)
+    anchor_gstin: str = Field(..., min_length=15, max_length=15)
+    amount: Decimal = Field(..., gt=0)
+    invoice_date: str
+    due_date: str
+    currency: str = "INR"
+    participant_id: str | None = None
+
+
+class InvoiceCapturedResponse(BaseModel):
+    """Response after invoice is captured."""
+
+    invoice_id: UUID
+    irn: str
+    status: str
+    message: str

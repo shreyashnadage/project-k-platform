@@ -21,7 +21,13 @@ from libs.ocen_client.models.journey import (
 )
 from libs.ocen_client.network_client import OcenNetworkClient
 
-from .models import LoanApplicationRequest, LoanApplicationResponse, LoanApplicationStatus
+from .models import (
+    InvoiceCapturedRequest,
+    InvoiceCapturedResponse,
+    LoanApplicationRequest,
+    LoanApplicationResponse,
+    LoanApplicationStatus,
+)
 from .service import get_gateway_service
 
 configure_logging(json_output=True)
@@ -83,6 +89,32 @@ def get_loan_status(request: ApplicationStatusRequest) -> LoanApplicationStatus:
         return gateway_service.get_status(request.application_id)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+# ─── Invoice Capture (ERP/Frappe Connector) ───────────────────────
+
+
+@app.post("/invoices/captured", response_model=InvoiceCapturedResponse)
+async def capture_invoice(request: InvoiceCapturedRequest) -> InvoiceCapturedResponse:
+    """Receive invoice notification from ERP connector (ERPNext/Frappe)."""
+    import uuid
+
+    invoice_id = uuid.uuid4()
+    logger.info(
+        "invoice_captured",
+        invoice_id=str(invoice_id),
+        irn=request.irn[:16] + "...",
+        vendor_gstin=request.vendor_gstin,
+        anchor_gstin=request.anchor_gstin,
+        amount=str(request.amount),
+    )
+
+    return InvoiceCapturedResponse(
+        invoice_id=invoice_id,
+        irn=request.irn,
+        status="captured",
+        message="Invoice captured. Ready for loan application.",
+    )
 
 
 # ─── OCEN Network Callback Endpoints ───────────────────────────
