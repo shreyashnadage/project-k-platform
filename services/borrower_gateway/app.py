@@ -21,6 +21,7 @@ from libs.ocen_client.models.journey import (
 )
 from libs.ocen_client.network_client import OcenNetworkClient
 
+from .dpdp_api import dpdp_router
 from .models import (
     InvoiceCapturedRequest,
     InvoiceCapturedResponse,
@@ -41,6 +42,7 @@ app.add_middleware(DPDPRBACMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.include_router(ops_router)
 app.include_router(vendors_router)
+app.include_router(dpdp_router)
 
 gateway_service = get_gateway_service()
 ocen_client = OcenNetworkClient()
