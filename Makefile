@@ -62,6 +62,16 @@ dbt-docs:  ## Generate and serve dbt docs
 	cd services/trust-graph && uv run dbt docs generate && uv run dbt docs serve
 
 # ─── Topics & Schemas ───────────────────────────��──────────
+# ─── Database Migrations ──────────────────────────────────
+migrate:  ## Run Alembic migrations to head
+	uv run alembic upgrade head
+
+migrate-down:  ## Rollback one migration
+	uv run alembic downgrade -1
+
+migrate-new:  ## Create a new migration (usage: make migrate-new msg="add foo table")
+	uv run alembic revision -m "$(msg)"
+
 topics:  ## Create Redpanda topics
 	./scripts/create-topics.sh
 

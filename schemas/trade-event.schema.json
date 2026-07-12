@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ocen.trade-events.v1",
+  "title": "TradeEvent",
+  "description": "Canonical event envelope for the OCEN platform event bus",
+  "type": "object",
+  "required": ["event_id", "event_type", "timestamp", "version", "source", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version": { "type": "string", "const": "1.0" },
+    "source": { "type": "string" },
+    "correlation_id": { "type": "string" },
+    "payload": { "type": "object" },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "actor_id": { "type": "string" },
+        "tenant_id": { "type": "string" },
+        "idempotency_key": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}
