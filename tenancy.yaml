@@ -6,39 +6,67 @@
 # The tenant ID is extracted from the verified JWT claim specified in
 # tenant_claim_path, then set as a Postgres session variable before every
 # query. RLS policies reference this variable.
+#
+# Table/column names below match the real schema in
+# migrations/versions/001_initial_schema.py (anchors, vendors,
+# loan_applications, decision_receipts) — not a hypothetical schema.
 
 tenant_claim_path: "org_id"
-tenant_column: "anchor_gstin"
 session_variable: "app.tenant_id"
 
 # Roles that bypass RLS (see all data across tenants).
-# These use SET ROLE to a superuser-like role in Postgres.
 bypass_roles:
   - platform-admin
   - operations
 
-# Tables with tenant-scoped data. Each gets an RLS policy.
+# Tables with a tenant column directly on them — get a straightforward
+# row-level policy.
 scoped_tables:
   - name: loan_applications
     tenant_column: anchor_gstin
     policy_name: anchor_isolation_loans
 
-  - name: vendor_profiles
-    tenant_column: anchor_gstin
-    policy_name: anchor_isolation_vendors
+# Tables without a direct tenant column, scoped via a join back to a
+# scoped table. decision_receipts only carries loan_application_id — its
+# policy checks that the referenced loan_application belongs to the tenant.
+joined_scoped_tables:
+  - name: decision_receipts
+    policy_name: anchor_isolation_receipts
+    join_table: loan_applications
+    join_column: loan_application_id
+    join_table_pk: id
+    join_table_tenant_column: anchor_gstin
 
-  - name: invoices
-    tenant_column: anchor_gstin
-    policy_name: anchor_isolation_invoices
+# RLS policy templates. `current_setting(..., true)` — the `true`
+# (missing_ok) argument means an unset session variable evaluates to NULL
+# rather than raising. Bypass roles (see rls.py::clear_tenant_context) set
+# the session variable to the literal sentinel "__RLS_BYPASS__" rather than
+# leaving it unset or empty — an empty string would make
+# `tenant_column = current_setting(...)` match nothing, hiding all rows
+# from bypass roles instead of showing everything. Every policy below
+# checks for that sentinel explicitly.
+rls_bypass_sentinel: "__RLS_BYPASS__"
 
-  - name: trust_scores
-    tenant_column: anchor_gstin
-    policy_name: anchor_isolation_trust
-
-# RLS policy template. Applied to each scoped_table.
-# Uses current_setting() to read the session variable set by middleware.
 rls_policy_template: |
   CREATE POLICY {policy_name} ON {table_name}
     FOR ALL
-    USING ({tenant_column} = current_setting('{session_variable}', true))
-    WITH CHECK ({tenant_column} = current_setting('{session_variable}', true));
+    USING (
+      current_setting('{session_variable}', true) = '{rls_bypass_sentinel}'
+      OR {tenant_column} = current_setting('{session_variable}', true)
+    )
+    WITH CHECK (
+      current_setting('{session_variable}', true) = '{rls_bypass_sentinel}'
+      OR {tenant_column} = current_setting('{session_variable}', true)
+    );
+
+# RLS policy template for joined_scoped_tables.
+joined_rls_policy_template: |
+  CREATE POLICY {policy_name} ON {table_name}
+    FOR ALL
+    USING (
+      current_setting('{session_variable}', true) = '{rls_bypass_sentinel}'
+      OR {join_column} IN (
+        SELECT {join_table_pk} FROM {join_table}
+        WHERE {join_table_tenant_column} = current_setting('{session_variable}', true)
+      )
+    );

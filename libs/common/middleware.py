@@ -24,6 +24,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse
 
 from libs.common.logging import correlation_id_var, new_correlation_id
+from libs.db.rls import get_tenant_claim_path, resolved_roles_var, tenant_id_var
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -114,6 +115,9 @@ class DPDPRBACMiddleware(BaseHTTPMiddleware):
                     status_code=403,
                     content={"detail": "Insufficient role for this endpoint"},
                 )
+
+            resolved_roles_var.set(frozenset(roles))
+            tenant_id_var.set(_extract_tenant_claim(decoded))
 
         except _AuthError as e:
             logger.warning("rbac_auth_failed", path=path, error=str(e))
@@ -240,6 +244,22 @@ def reset_authz_cache() -> None:
 
 def _is_public_path(path: str) -> bool:
     return any(path.startswith(p) for p in _load_public_paths())
+
+
+def _extract_tenant_claim(decoded: dict) -> str | None:
+    """Extract the tenant/org claim from a decoded token, per tenancy.yaml.
+
+    Supports dotted paths (e.g. "org_id" or "custom.tenant_id"), same
+    convention as dpdp-core's role_claim_path.
+    """
+    parts = get_tenant_claim_path().split(".")
+    current: object = decoded
+    for part in parts:
+        if isinstance(current, dict):
+            current = current.get(part)
+        else:
+            return None
+    return current if isinstance(current, str) else None
 
 
 def _check_role_access_default_deny(path: str, roles: set[str]) -> bool:
