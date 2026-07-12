@@ -12,11 +12,10 @@ Each activity MUST be idempotent — Temporal may retry on failure.
 
 from __future__ import annotations
 
-import threading
-from dataclasses import dataclass
-
 import hashlib
 import os
+import threading
+from dataclasses import dataclass
 from uuid import UUID
 
 import orjson
@@ -109,7 +108,8 @@ async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
 
     if input.context and input.ruleset_name in get_zen_engine().loaded_rulesets:
         result = get_zen_engine().evaluate(input.ruleset_name, input.context)
-        input_hash = hashlib.sha256(orjson.dumps(input.context, option=orjson.OPT_SORT_KEYS)).hexdigest()[:16]
+        context_bytes = orjson.dumps(input.context, option=orjson.OPT_SORT_KEYS)
+        input_hash = hashlib.sha256(context_bytes).hexdigest()[:16]
         receipt_id = f"receipt-{input.loan_application_id}-{input.gate}"
 
         try:

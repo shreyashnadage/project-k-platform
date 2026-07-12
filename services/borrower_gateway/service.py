@@ -224,7 +224,9 @@ class AsyncDBGatewayService:
                 record.offer_data = extra["offer_data"]
 
             await session.commit()
-            logger.info("gate_updated", application_id=str(application_id), gate=gate, status=status)
+            logger.info(
+                "gate_updated", application_id=str(application_id), gate=gate, status=status
+            )
 
 
 def get_gateway_service() -> BorrowerGatewayService | AsyncDBGatewayService:

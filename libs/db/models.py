@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal  # noqa: TC003
 
 from sqlalchemy import (
     Boolean,
@@ -40,7 +40,9 @@ class LoanApplicationRecord(Base):
     offer_data: Mapped[dict | None] = mapped_column(JSONB)
     amount_sanctioned: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     __table_args__ = (
         Index("ix_loan_app_vendor", "vendor_gstin"),
@@ -54,7 +56,9 @@ class DecisionReceiptRecord(Base):
     __tablename__ = "decision_receipts"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    loan_application_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    loan_application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
     gate: Mapped[str] = mapped_column(String(50), nullable=False)
     outcome: Mapped[str] = mapped_column(String(20), nullable=False)
     ruleset_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -63,7 +67,9 @@ class DecisionReceiptRecord(Base):
     engine_version: Mapped[str] = mapped_column(String(20), default="zen-1.0")
     signature: Mapped[str | None] = mapped_column(Text)
     chain_hash: Mapped[str | None] = mapped_column(String(64))
-    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    evaluated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     __table_args__ = (
         Index("ix_receipt_loan_gate", "loan_application_id", "gate"),
@@ -79,7 +85,9 @@ class AnchorRecord(Base):
     sector: Mapped[str | None] = mapped_column(String(100))
     region: Mapped[str | None] = mapped_column(String(100))
     repayment_routing_active: Mapped[bool] = mapped_column(Boolean, default=False)
-    onboarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    onboarded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class VendorRecord(Base):
@@ -90,7 +98,9 @@ class VendorRecord(Base):
     gstin: Mapped[str] = mapped_column(String(15), unique=True, nullable=False)
     udyam_number: Mapped[str | None] = mapped_column(String(30))
     udyam_category: Mapped[str | None] = mapped_column(String(10))
-    onboarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    onboarded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class IdempotencyRecord(Base):
