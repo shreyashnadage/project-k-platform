@@ -12,6 +12,8 @@ from temporalio.client import Client as TemporalClient
 
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIdMiddleware
+from libs.common.rate_limit import RateLimitMiddleware
+from libs.common.tracing import init_tracing
 from libs.ocen_client.jws.signer import OcenJWSSigner
 from libs.ocen_client.models.journey import (
     CreateLoanApplicationResponse,
@@ -23,10 +25,12 @@ from .models import LoanApplicationRequest, LoanApplicationResponse, LoanApplica
 from .service import get_gateway_service
 
 configure_logging(json_output=True)
+init_tracing(service_name="borrower-gateway")
 logger = structlog.get_logger()
 
 app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.1.0")
 app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 gateway_service = get_gateway_service()
 ocen_client = OcenNetworkClient()

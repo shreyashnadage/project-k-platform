@@ -1,4 +1,4 @@
-.PHONY: up down logs test lint fmt worker dbt-run dbt-test init clean help
+.PHONY: up down logs test lint fmt worker dbt-run dbt-test init init-db clean help
 
 # ─── Infrastructure ─────────────────────��───────────────────
 up:  ## Start local dev stack
@@ -63,6 +63,10 @@ dbt-docs:  ## Generate and serve dbt docs
 
 # ─── Topics & Schemas ───────────────────────────��──────────
 # ─── Database Migrations ──────────────────────────────────
+init-db:  ## Initialize database schema (create tables + run migrations)
+	uv run alembic upgrade head
+	@echo "Database schema initialized."
+
 migrate:  ## Run Alembic migrations to head
 	uv run alembic upgrade head
 
