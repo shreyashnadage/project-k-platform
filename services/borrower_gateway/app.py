@@ -9,6 +9,11 @@ from pydantic import BaseModel
 
 from libs.common.logging import configure_logging
 from libs.common.middleware import CorrelationIdMiddleware
+from libs.ocen_client.models.journey import (
+    CreateLoanApplicationResponse,
+    OcenAckResponse,
+)
+from libs.ocen_client.network_client import OcenNetworkClient
 
 from .models import LoanApplicationRequest, LoanApplicationResponse, LoanApplicationStatus
 from .service import BorrowerGatewayService
@@ -19,6 +24,7 @@ app = FastAPI(title="Borrower Gateway - OCEN LA", version="0.1.0")
 app.add_middleware(CorrelationIdMiddleware)
 
 gateway_service = BorrowerGatewayService()
+ocen_client = OcenNetworkClient()
 
 
 @app.post("/loans/apply", response_model=LoanApplicationResponse)
@@ -36,6 +42,17 @@ def get_loan_status(request: ApplicationStatusRequest) -> LoanApplicationStatus:
         return gateway_service.get_status(request.application_id)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@app.post(
+    "/v4.0.0alpha/loanApplications/createLoanResponse",
+    response_model=OcenAckResponse,
+)
+async def create_loan_response(
+    response: CreateLoanApplicationResponse,
+) -> OcenAckResponse:
+    """OCEN async callback — lender posts loan decision back to LA."""
+    return await ocen_client.handle_loan_response(response)
 
 
 @app.get("/health")
