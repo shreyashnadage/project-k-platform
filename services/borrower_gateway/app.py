@@ -62,13 +62,7 @@ async def apply_for_loan(request: LoanApplicationRequest) -> LoanApplicationResp
         temporal = await get_temporal_client()
         await temporal.start_workflow(
             "LoanOriginationWorkflow",
-            {
-                "loan_application_id": str(response.application_id),
-                "vendor_gstin": request.vendor_gstin,
-                "anchor_gstin": request.anchor_gstin,
-                "invoice_id": str(request.invoice_id),
-                "amount_requested": float(request.amount_requested),
-            },
+            str(response.application_id),
             id=response.workflow_id,
             task_queue=os.environ.get("TEMPORAL_TASK_QUEUE", "loan-origination"),
         )
