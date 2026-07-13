@@ -16,6 +16,9 @@ dependencies = [
     # DPDP compliance (PII redaction, consent, encryption, audit)
     "dpdp-core",
 
+    # Sandbox mock clients (separate repo)
+    "ocen-sandbox",
+
 
     # Event bus (Kafka-compatible)
     "confluent-kafka>=2.6",
@@ -112,3 +115,4 @@ asyncio_mode = "auto"
 
 [tool.uv.sources]
 dpdp-core = { git = "https://github.com/shreyashnadage/project-k-dpdp-core.git", branch = "master" }
+ocen-sandbox = { git = "https://github.com/shreyashnadage/project-k-sandbox.git", branch = "master" }

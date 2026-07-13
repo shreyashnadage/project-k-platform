@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         GSTClient,
         LenderCallbackClient,
         OCENClient,
+        UdyamClient,
     )
 
 
@@ -42,7 +43,7 @@ def _get_mode() -> str:
 
 def get_aa_client() -> AAClient:
     if _get_mode() == "sandbox":
-        from sandbox.clients.aa_client import SandboxAAClient
+        from ocen_sandbox import SandboxAAClient
 
         return SandboxAAClient()
     raise NotImplementedError("Real AA client (Setu/Perfios) not yet implemented")
@@ -50,7 +51,7 @@ def get_aa_client() -> AAClient:
 
 def get_ocen_client() -> OCENClient:
     if _get_mode() == "sandbox":
-        from sandbox.clients.ocen_client import SandboxOCENClient
+        from ocen_sandbox import SandboxOCENClient
 
         return SandboxOCENClient()
     raise NotImplementedError("Real OCEN client not yet implemented")
@@ -65,7 +66,7 @@ def get_ocen_network_client() -> OcenNetworkClient:  # noqa: F821
 
 def get_gst_client() -> GSTClient:
     if _get_mode() == "sandbox":
-        from sandbox.clients.gst_client import SandboxGSTClient
+        from ocen_sandbox import SandboxGSTClient
 
         return SandboxGSTClient()
     raise NotImplementedError("Real GST client not yet implemented")
@@ -73,7 +74,7 @@ def get_gst_client() -> GSTClient:
 
 def get_consent_client() -> ConsentClient:
     if _get_mode() == "sandbox":
-        from sandbox.clients.consent_client import SandboxConsentClient
+        from ocen_sandbox import SandboxConsentClient
 
         return SandboxConsentClient()
     from dpdp_core.consent.ledger import create_ledger
@@ -83,10 +84,36 @@ def get_consent_client() -> ConsentClient:
 
 def get_lender_client(auto_approve: bool = True) -> LenderCallbackClient:
     if _get_mode() == "sandbox":
-        from sandbox.clients.lender_client import SandboxLenderClient
+        from ocen_sandbox import SandboxLenderClient
 
         return SandboxLenderClient(auto_approve=auto_approve)
     raise NotImplementedError("Real lender callback client not yet implemented")
+
+
+def get_udyam_client() -> UdyamClient:
+    """Get Udyam verification client based on INTEGRATION_MODE and UDYAM_TSP_PROVIDER.
+
+    Provider selection (only matters in live mode):
+      UDYAM_TSP_PROVIDER=gridlines → Gridlines.io
+      UDYAM_TSP_PROVIDER=surepass → Surepass.io
+    """
+    if _get_mode() == "sandbox":
+        from ocen_sandbox import SandboxUdyamClient
+
+        return SandboxUdyamClient()
+
+    provider = os.environ.get("UDYAM_TSP_PROVIDER", "gridlines").lower()
+    if provider == "gridlines":
+        from libs.integrations.udyam import GridlinesUdyamClient
+
+        return GridlinesUdyamClient()
+    if provider == "surepass":
+        from libs.integrations.udyam import SurepassUdyamClient
+
+        return SurepassUdyamClient()
+
+    msg = f"Unknown UDYAM_TSP_PROVIDER: {provider!r}. Use 'gridlines' or 'surepass'."
+    raise RuntimeError(msg)
 
 
 def get_db_session_factory():
@@ -96,10 +123,9 @@ def get_db_session_factory():
     from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
     from sqlalchemy.orm import sessionmaker
 
-    db_url = os.environ.get(
-        "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/ocen_platform"
-    )
-    engine = create_async_engine(db_url)
+    from libs.db.engine import DATABASE_URL  # shared default + fail-fast guard
+
+    engine = create_async_engine(DATABASE_URL)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     @asynccontextmanager

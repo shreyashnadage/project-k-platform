@@ -55,6 +55,16 @@ class ConsentClient(Protocol):
     ) -> None: ...
 
 
+class UdyamClient(Protocol):
+    """Udyam Registration verification — TSP-agnostic adapter.
+
+    Verifies MSME registration status and retrieves enterprise details.
+    Backed by any TSP: Gridlines, Surepass, Karza, etc.
+    """
+
+    async def verify(self, udyam_number: str) -> UdyamVerificationResult: ...
+
+
 class LenderCallbackClient(Protocol):
     """Handles lender D4 underwriting callbacks."""
 
@@ -157,6 +167,52 @@ class ConsentCheckResult:
     def __init__(self, allowed: bool, reason: str = "") -> None:
         self.allowed = allowed
         self.reason = reason
+
+
+class UdyamVerificationResult:
+    """Normalized Udyam verification response — TSP-agnostic."""
+
+    def __init__(
+        self,
+        udyam_number: str,
+        valid: bool,
+        enterprise_name: str | None = None,
+        enterprise_type: str | None = None,
+        major_activity: str | None = None,
+        organization_type: str | None = None,
+        date_of_incorporation: str | None = None,
+        date_of_commencement: str | None = None,
+        date_of_udyam_registration: str | None = None,
+        state: str | None = None,
+        district: str | None = None,
+        city: str | None = None,
+        pincode: str | None = None,
+        address: str | None = None,
+        nic_codes: list[dict[str, str]] | None = None,
+        owner_name: str | None = None,
+        social_category: str | None = None,
+        dic: str | None = None,
+        raw_response: dict[str, Any] | None = None,
+    ) -> None:
+        self.udyam_number = udyam_number
+        self.valid = valid
+        self.enterprise_name = enterprise_name
+        self.enterprise_type = enterprise_type
+        self.major_activity = major_activity
+        self.organization_type = organization_type
+        self.date_of_incorporation = date_of_incorporation
+        self.date_of_commencement = date_of_commencement
+        self.date_of_udyam_registration = date_of_udyam_registration
+        self.state = state
+        self.district = district
+        self.city = city
+        self.pincode = pincode
+        self.address = address
+        self.nic_codes = nic_codes or []
+        self.owner_name = owner_name
+        self.social_category = social_category
+        self.dic = dic
+        self.raw_response = raw_response
 
 
 class LenderDecision:
