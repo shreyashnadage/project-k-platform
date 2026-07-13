@@ -1,0 +1,19 @@
+# .terraform/, *.tfstate*, and .terraform.lock.hcl are already covered by
+# the repo root .gitignore. This file adds what that one doesn't.
+
+# Saved plan files carry resource values (some sensitive) and go stale
+# the moment AWS state changes — never meant to be committed.
+tfplan
+*.tfplan
+
+crash.log
+crash.*.log
+
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

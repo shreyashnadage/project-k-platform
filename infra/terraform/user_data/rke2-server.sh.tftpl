@@ -1,0 +1,42 @@
+#!/bin/bash
+# RKE2 control-plane bootstrap — templated by Terraform (rke2.tf).
+# Logs to /var/log/rke2-bootstrap.log for post-mortem via SSM.
+set -euxo pipefail
+exec > >(tee -a /var/log/rke2-bootstrap.log) 2>&1
+
+echo "=== Installing AWS CLI v2 ==="
+apt-get update -y
+apt-get install -y unzip curl
+curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install
+rm -rf /tmp/awscliv2.zip /tmp/aws
+
+echo "=== Installing RKE2 server (channel: ${rke2_version}) ==="
+curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL="${rke2_version}" INSTALL_RKE2_TYPE="server" sh -
+
+systemctl enable rke2-server.service
+systemctl start rke2-server.service
+
+echo "=== Waiting for node token ==="
+until [ -f /var/lib/rancher/rke2/server/node-token ]; do
+  sleep 5
+done
+
+TOKEN=$(cat /var/lib/rancher/rke2/server/node-token)
+
+echo "=== Publishing join token to SSM Parameter Store ==="
+aws ssm put-parameter \
+  --region "${aws_region}" \
+  --name "${token_parameter_name}" \
+  --value "$TOKEN" \
+  --type SecureString \
+  --overwrite
+
+echo "=== Convenience: kubectl on PATH, KUBECONFIG in profile ==="
+ln -sf /var/lib/rancher/rke2/bin/kubectl /usr/local/bin/kubectl
+echo 'export KUBECONFIG=/etc/rancher/rke2/rke2.yaml' > /etc/profile.d/rke2.sh
+# rke2.yaml stays root-only (default 0600) — it carries cluster-admin
+# credentials. Retrieval over SSM uses `sudo cat`, not a loosened mode.
+
+echo "=== RKE2 server bootstrap complete ==="
