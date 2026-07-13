@@ -1,0 +1,360 @@
+# OCEN Platform — Role-Based User Guide
+
+**Last updated:** 12 Jul 2026 · Covers the platform as of the `dpdp-compliance-analysis` merge and {{PRODUCT_NAME}} brand rollout.
+
+This guide explains the platform from the perspective of everyone who touches it: the **vendor/borrower**, the **anchor**, the **lender**, the **ops team**, and **platform admins**. If you only need a technical overview, see [`userguide.md`](userguide.md); this document is organized by *who you are* and *what you do*.
+
+---
+
+## 0. One-Paragraph Overview (Read This First)
+
+A vendor (small manufacturer/supplier) sells goods to a large anchor (auto-ancillary or manufacturing corporate) and holds an unpaid invoice. Instead of waiting 60–90 days to get paid, the vendor applies for a loan against that invoice through this platform. The platform validates that the invoice is real and that the anchor has confirmed it owes the money (**Kind 1 attestation**), checks the vendor has enough financial data on file, computes risk indicators, matches the vendor to eligible lenders, and submits the application over **OCEN 4.0** (India's open lending network). Lenders independently decide whether to approve and at what rate — that decision is never made by this platform. Once approved, money disburses to the vendor and repayment routes directly from the anchor to the lender.
+
+| Role | One-line summary |
+|---|---|
+| **Borrower / Vendor MSME** | Applies for a loan against a confirmed invoice; gets paid early. |
+| **Anchor MSME** | The buyer whose GST-portal invoice acceptance is what makes the loan financeable. Passive role — no platform login needed. |
+| **Lender** | An NBFC/bank on the OCEN network that receives pre-screened applications and makes the actual credit decision (D4). |
+| **Ops team** | Platform staff who onboard vendors/anchors, monitor applications, and intervene (hold/flag/escalate) via the {{BACK_OFFICE_NAME}}. |
+| **Admin** | Platform-admin role — manages users/roles, DPDP compliance, breach response, decision rules, and branding. |
+
+---
+
+## 1. Borrower / Vendor MSME
+
+### Who you are
+A small or medium manufacturer/supplier (an MSME, typically in the Kolhapur auto-ancillary belt) who has sold goods to a large anchor company and is waiting on an invoice.
+
+### Getting an account
+
+There are two ways to get onto the platform:
+
+**A. Self-registration** (you initiate it)
+```
+POST /vendors/register
+{
+  "name": "Your Company Name",
+  "gstin": "27AADCB2230M1ZT",      # 15-char GST number
+  "phone": "+919876543210",
+  "udyam_number": "UDYAM-XX-00-0000000",   # optional
+  "udyam_category": "micro"                 # optional
+}
+→ { "vendor_id": "<uuid>", "status": "active" }
+```
+You're active immediately — no waiting on ops approval.
+
+**B. Ops-invited** (the platform's ops/anchor-relationship team invites you)
+1. Ops sends you an invite link (generated via their back-office).
+2. You open the link and complete:
+```
+POST /vendors/activate
+{ "invite_token": "<token from the link>", "name": "...", "udyam_number": "..." }
+→ { "vendor_id": "<uuid>", "status": "active" }
+```
+
+### Before you can apply: your invoice needs to be "Kind 1"
+
+This is the single most important concept for you. The platform will not send your loan application to any lender unless your invoice is **Kind 1 attested** — meaning all of the following are true:
+
+| Condition | What it means for you |
+|---|---|
+| Valid IRN | Your invoice has a valid Invoice Reference Number from the GST e-invoicing portal (a 64-character hash). This is generated automatically when you raise a proper e-invoice. |
+| IMS accepted | The anchor has explicitly **accepted** your invoice on their GST Invoice Management System (IMS). "Deemed accepted" (anchor took no action) counts as a weaker signal — your application can still proceed but is flagged, which may mean a smaller pool of eligible lenders or less favorable terms. |
+| Repayment routing active | The anchor has enabled a confirmed repayment channel — this is what convinces lenders that money will actually flow back. |
+
+**Practical implication:** chase the anchor to *actively accept* your invoice on GST IMS rather than letting it sit as "pending." A pending or rejected invoice means your Kind 1 check fails outright and you cannot apply.
+
+### Applying for a loan
+
+```
+POST /loans/apply
+{
+  "invoice_id": "<uuid>",
+  "vendor_gstin": "27AADCB2230M1ZT",
+  "anchor_gstin": "36AABCY9234H1Z5",
+  "amount_requested": "500000.00",
+  "idempotency_key": "optional-dedup-key"
+}
+→ { "application_id": "<uuid>", "status": "initiated", "current_gate": "d0_kind1", "workflow_id": "..." }
+```
+
+### What happens after you apply — the full journey
+
+Your application moves through a sequence of checks (the platform calls these "decision gates"). You can poll status anytime:
+
+```
+POST /loans/status
+{ "application_id": "<uuid>" }
+→ { "status": "...", "current_gate": "...", "amount_sanctioned": ..., "lender_id": ... }
+```
+
+| Step | What's checked | If it fails, you'll see |
+|---|---|---|
+| **0. Consent check** | You must have granted consent for your data to be used for loan origination and Kind 1 attestation. | "Consent required for loan processing" — re-grant consent and reapply. |
+| **1. D0 — Kind 1 gate** | IRN valid + IMS accepted + repayment routing active + your GSTIN active. | "Invoice not attested. Ensure buyer accepted on GST IMS." |
+| **2. Account Aggregator data fetch** | You (or your bank, via the AA framework) must approve a data-sharing consent so the platform can pull 6 months of bank statements and GST returns. This can take a few minutes if you need to approve it live; times out after 10 minutes. | "Financial data fetch failed. Please approve Account Aggregator consent." |
+| **3. D1 — Data sufficiency** | Needs ≥6 months of financial data, no older than 30 days, with GST returns filed. 3–5 months (fresher than 60 days) is accepted but flagged as "marginal" — you may see smaller offers or higher rates. Fewer than 3 months, stale data (>60 days), or unfiled GST returns fails outright. | "Insufficient financial data. Please have at least 3–6 months of bank statements and GST filings." |
+| **4. D2 — Derived attributes** | The platform computes metrics like Days Sales Outstanding (DSO), buyer concentration, invoice dilution rate, and the anchor's payment punctuality. This step never blocks you — it only attaches informational flags that lenders see when pricing your loan (e.g., depending too much on one buyer, or that buyer paying late historically, can mean a higher rate). | N/A — always passes through. |
+| **5. D3 — Lender pre-screen** | The platform matches your profile (loan amount, months of data, risk flags, trust score) against each lender's published eligibility filters. If zero lenders match, you're rejected here. | "No lenders currently match your profile. Improve GST filing or reduce risk indicators." |
+| **6. (Rare) Ops hold** | Ops staff can pause your application for manual review (e.g., a fraud check) for up to 72 hours. | Status shows "held" with a reason; contact ops if it's been a while. |
+| **7. OCEN submission** | Your application (now including invoice proof, GST/bank data, and risk indicators — never your login credentials) is cryptographically signed and sent to every matched lender simultaneously. | — |
+| **8. D4 — Lender's decision** | Each lender independently runs their own credit assessment. This is **not** something this platform controls — every lender's internal criteria differ. Lenders typically respond within minutes to a few hours; the platform waits up to 24 hours. | "Lender declined. You can retry with a different lender." or a timeout message. |
+| **9. Offer received** | You'll see the approved amount, interest rate, tenor, processing fee, and a Key Fact Statement (KFS) link. | — |
+
+### Why the process is designed this way
+
+The platform never makes the actual lending decision (D4) — that's always the lender's, both for regulatory reasons and because we don't want to encode any single lender's credit policy. What the platform *does* guarantee is that by the time your application reaches a lender, it's backed by structural proof the receivable is real — which is why approvals tend to be faster and rates tend to be better than approaching a lender cold.
+
+### Quick reference: your endpoints
+
+| Endpoint | Method | Auth | Purpose |
+|---|---|---|---|
+| `/vendors/register` | POST | None | Self-register |
+| `/vendors/activate` | POST | None | Activate from an ops invite |
+| `/loans/apply` | POST | None | Submit a loan application |
+| `/loans/status` | POST | None | Check application status |
+| `/dpdp/consent/{data_principal_id}` | GET | Admin-only (see §5) | Check your own consent status (via ops/admin) |
+
+---
+
+## 2. Anchor MSME
+
+### Who you are
+A large buyer — an auto-ancillary or manufacturing corporate — who purchases from MSME vendors and is the counterparty on the invoices vendors want financed.
+
+### Your role is mostly passive — but critical
+
+You don't log into this platform day-to-day. Your involvement happens through systems you already use:
+
+1. **GST portal (IMS):** When your accounts team receives an e-invoice from a vendor, actively clicking **"Accept"** on the GST Invoice Management System is what unlocks Kind 1 attestation for that invoice. Leaving it as "pending" or letting it default to "deemed accepted" (no action taken) weakens the vendor's application — deemed-accepted invoices are flagged as a lower-confidence signal to lenders.
+2. **Repayment routing:** Ops sets up a confirmed repayment channel with you once during onboarding — this is what lets the platform (and lenders) know that when a loan is disbursed against your invoice, you will pay it back through a verified route directly to the lender, not through any pooled account controlled by the platform. This is a regulatory requirement (RBI Digital Lending Directions 2025 prohibit any pass-through pooling).
+
+### Onboarding (done by ops, not self-service)
+
+Ops onboards you via:
+```
+POST /ops/anchor/onboard   (ops-only, requires anchor-manager or platform-admin role)
+{
+  "name": "Anchor Company Name",
+  "gstin": "36AABCY9234H1Z5",
+  "sector": "Automotive",
+  "region": "Western Maharashtra",
+  "onboarded_by": "ops_manager@company.com"
+}
+→ { "anchor_id": "<uuid>", "status": "onboarded" }
+```
+There's no anchor self-service portal today — reach out to the platform's ops/relationship team to get set up, or to update your sector/region metadata.
+
+### What you'll notice operationally
+
+- **When you accept an invoice on GST IMS**, that action is what your vendor is waiting on before they can get financed.
+- **When a loan is disbursed** against your invoice, the repayment obligation and schedule are between you and the lender directly — the platform is never in that money-movement path.
+- Ops staff can see your onboarding status, sector, and region in the {{BACK_OFFICE_NAME}}, alongside every vendor and loan tied to you.
+
+---
+
+## 3. Lender
+
+### Who you are
+An NBFC or bank participating in India's OCEN 4.0 network, receiving pre-screened loan applications from this Loan Agent (LA) and making the actual credit decision.
+
+### What you receive isn't a bare application — it's a data package
+
+By the time an application reaches you, it has already passed through D0–D3 (invoice validity, data sufficiency, derived risk attributes, and pre-screening against your own published eligibility filters). You never see applications that don't meet your stated criteria in the first place.
+
+The `createLoanRequest` payload includes:
+
+| Data | What it is |
+|---|---|
+| **Kind 1 attestation proof** | Cryptographic evidence the invoice's IRN is valid, the anchor accepted it on GST IMS, and repayment routing is active. |
+| **Vendor GST returns** | 6+ months of GSTR-1/GSTR-3B filings, pulled via Account Aggregator consent. |
+| **Bank statements** | 6+ months of transaction history, also via AA consent. |
+| **Derived attributes (D2)** | DSO, DPO, CCC (cash conversion cycle), buyer concentration, dilution rate, anchor payment punctuality — computed by the platform's DDP (Derived Data Provider) engine. |
+| **Risk flags** | e.g. high buyer concentration, elevated DSO, high dilution, anchor payment delays — with severity ratings. |
+| **Trust Graph score** | A proprietary 0–100 reputation score built from cross-lender attestation, origination, and repayment history that no single lender can see on their own. |
+| **Signed decision receipt** | Every D0–D3 evaluation is a content-addressed, KMS-signed record (`ruleset_hash`, `input_hash`, `outcome`) — your audit trail that the pre-screen wasn't tampered with. |
+
+**Important:** the platform never tells you whether to approve. D4 (underwriting) is entirely yours — your credit model, your pricing, your call.
+
+### Integrating as an OCEN participant
+
+1. **Register on the OCEN Registry** — get a `client_id`/`client_secret`, generate an RSA keypair, and register your public key (JWK) plus your base URL.
+2. **Expose 8 callback endpoints** matching the OCEN 4.0 spec, e.g.:
+
+| Callback you implement | When you call it |
+|---|---|
+| `createLoanResponse` | After your D4 decision (approve/decline) |
+| `generateOffersResponse` | When your generated offer terms are ready |
+| `setOffersResponse` | Confirming which offer the vendor selected |
+| `loanAgreementResponse` | Loan agreement ready for e-sign |
+| `grantLoanResponse` | Loan officially granted |
+| `triggerDisbursementResponse` | Funds have been disbursed |
+| `triggerRepaymentResponse` | A repayment was received |
+| `setRepaymentPlanResponse` | EMI/repayment schedule set |
+
+3. **Sign every response** with a detached JWS (RFC 7797, RSA-SHA256) in the `x-jws-signature` header — the platform verifies this against your registered public key before accepting it.
+4. **Never pool repayments** — route them directly from the anchor to you via your own NEFT/RTGS corridor. Report the repayment back via `triggerRepaymentResponse` so it feeds the Trust Graph (which benefits you on future applications too).
+
+### Testing your integration
+
+Use `INTEGRATION_MODE=sandbox` on the platform side — this exercises the full OCEN flow against a simulated lender client with configurable auto-approve behavior, so you can validate your callback handling before going live.
+
+---
+
+## 4. Ops Team
+
+### Who you are
+Platform operations staff working day-to-day in the {{BACK_OFFICE_NAME}} (and occasionally calling the platform API directly) to onboard vendors/anchors and monitor/intervene on loan applications.
+
+### Your two roles
+
+| Role | You can do |
+|---|---|
+| **`operations`** | Hold / release / flag / escalate applications; list and view all applications (read). |
+| **`anchor-manager`** | Invite vendors, onboard anchors; list and view applications (read). |
+
+(`platform-admin` can do everything either role can, plus compliance/user-management tasks — see §5.)
+
+### Where you work
+
+Primarily **{{BACK_OFFICE_NAME}}** (`http://13.234.12.74`, site `ocen.local`), themed with the {{PRODUCT_NAME}} brand. Every meaningful platform event — new applications, decisions evaluated, offers, disbursements, ops actions — is forwarded there in near real time via a webhook bridge (`backoffice_sync` service), so you don't need to poll the platform API for routine monitoring.
+
+### Onboarding a vendor
+
+```
+POST /ops/vendor/invite   (Bearer token; anchor-manager or platform-admin)
+{
+  "name": "Vendor Name",
+  "gstin": "27AADCB2230M1ZT",
+  "phone": "+919876543210",
+  "udyam_number": "UDYAM-...",   # optional
+  "invited_by": "you@company.com"
+}
+→ { "vendor_id": "<uuid>", "invite_token": "...", "invite_link": "https://.../invite/<token>" }
+```
+Send the `invite_link` to the vendor; they complete registration themselves via `/vendors/activate`.
+
+### Onboarding an anchor
+
+```
+POST /ops/anchor/onboard   (Bearer token; anchor-manager or platform-admin)
+{ "name": "...", "gstin": "...", "sector": "...", "region": "...", "onboarded_by": "you@company.com" }
+→ { "anchor_id": "<uuid>", "status": "onboarded" }
+```
+
+### Application monitoring and intervention
+
+```
+GET  /ops/applications/active               # all non-terminal applications
+GET  /ops/applications/{application_id}     # full detail: gate, status, offer, flags
+```
+
+**Hold** an application before it's submitted to lenders (e.g., pending a manual fraud check):
+```
+POST /ops/hold
+{ "application_id": "<uuid>", "reason": "Manual review — suspicious activity", "held_by": "you@company.com" }
+```
+This pauses the Temporal workflow via a signal. If not released within **72 hours**, the application automatically rejects with `ops_hold_expired`.
+
+**Release** the hold once you've cleared it:
+```
+POST /ops/release
+{ "application_id": "<uuid>", "released_by": "you@company.com" }
+```
+
+**Flag** an application (non-blocking annotation, e.g. "priority" or "manual_review"):
+```
+POST /ops/flag
+{ "application_id": "<uuid>", "flag_type": "suspicious", "note": "...", "flagged_by": "you@company.com" }
+```
+
+**Escalate to collections** (post-disbursement, e.g. an overdue loan):
+```
+POST /ops/escalate
+{ "application_id": "<uuid>", "reason": "Loan 90 days overdue", "escalated_by": "you@company.com" }
+```
+
+### A typical day
+
+1. **Morning:** review new applications in the {{BACK_OFFICE_NAME}} dashboard (populated automatically from platform webhooks).
+2. **Triage:** flag anything unusual; hold applications that need manual verification.
+3. **Onboarding queue:** invite vendors and onboard anchors as sales/relationship requests come in.
+4. **Post-disbursement:** watch for overdue repayments and escalate to collections when needed.
+
+### Every action you take is auditable
+
+Every ops command (hold, release, flag, escalate) emits an event to the platform's event stream and is visible in the audit trail — there's no silent override of the decision pipeline.
+
+---
+
+## 5. Admin (`platform-admin`)
+
+### Who you are
+Someone with full platform administration rights — typically a senior ops lead, a compliance officer, or platform engineering.
+
+### What only you can do (beyond ops staff)
+
+| Area | What |
+|---|---|
+| **User & role management** | In Keycloak (realm `ocen-platform`), create staff accounts and assign roles: `platform-admin`, `operations`, `anchor-manager`, `lender-viewer`. |
+| **DPDP Data Subject Rights** | `POST /dpdp/rights/submit` (access / erasure / correction / grievance / nomination requests) and `GET /dpdp/rights/{request_id}` to check status — 72-hour SLA, fulfilled via a Temporal workflow. |
+| **Consent verification** | `GET /dpdp/consent/{data_principal_id}` — check what a data principal has consented to. |
+| **Breach monitoring** | The platform watches for bulk PII access (>100 reads/5 min), repeated failed auth (>20/10 min), and exports without a DSR (>1/min). Confirmed breaches trigger a Temporal workflow and a DPBI notification obligation within 72 hours. |
+| **Audit verification** | Every D0–D3 decision produces a signed, chain-linked receipt (`ruleset_hash`, `input_hash`, KMS/HMAC signature). You can verify the hash chain hasn't been tampered with for regulatory inquiries. |
+| **Decision rule changes** | Rules live as JSON (JDM format) in `rules/`, e.g. `rules/d0-kind1-gate.json`, `rules/d1-data-sufficiency.json`, `rules/d2-derived-flags.json`, `rules/d3-lender-prescreen.json`. Editing thresholds (e.g. tightening D1's "6 months of data" requirement) needs zero code deploys — the engine hot-reloads. |
+| **DPDP config** | `dpdp_config.yaml` controls RBAC endpoint-role mappings, retention policies, breach thresholds, and consent purposes — all policy-as-config, no code changes. |
+| **Brand/theme** | `brand/brand.yaml` is the single source of truth for the platform's name, logo, and color palette (currently "{{PRODUCT_NAME}}" — a working title). Regenerate and redeploy with `make brand-deploy`; see §6. |
+
+### RBAC endpoint map (for reference)
+
+| Path prefix | Allowed roles |
+|---|---|
+| `/ops/hold`, `/ops/release`, `/ops/flag`, `/ops/escalate` | `platform-admin`, `operations` |
+| `/ops/applications/*` | `platform-admin`, `operations`, `lender-viewer` |
+| `/ops/vendor/invite`, `/ops/anchor/onboard` | `platform-admin`, `anchor-manager` |
+| `/dpdp/rights`, `/dpdp/consent` | `platform-admin` only |
+
+RBAC is **disabled by default** in dev (`DPDP_RBAC_ENABLED=false`) — turn it on for staging/production.
+
+### System monitoring
+
+- `GET /health` on the borrower gateway checks Temporal connectivity.
+- `backoffice_sync` consumer logs show any failed webhook deliveries to {{BACK_OFFICE_NAME}} (retries with exponential backoff, then dead-letters).
+- Breach detection and DSR fulfillment both run as Temporal workflows — visible in the Temporal UI.
+
+### Deployment footprint you're responsible for
+
+| Service | Port | Purpose |
+|---|---|---|
+| `borrower-gateway` | 8000 | Main API — vendor, ops, DPDP, and OCEN callback endpoints |
+| `ddp-engine` | 8001 | Derived data computation |
+| `vdp-wedge` | 8002 | Invoice ingestion / Kind 1 checks |
+| `trust-graph-api` | 8003 | Proprietary trust scoring |
+| `la-orchestrator-worker` | — | Temporal worker running the loan origination pipeline |
+| {{BACK_OFFICE_NAME}} | 80 (13.234.12.74) | Ops UI, themed with `munimco_brand` |
+| Borrower PWA | 3000 (proxied via nginx) | Vendor-facing web app |
+
+---
+
+## 6. Shared Concepts Glossary
+
+| Term | Meaning |
+|---|---|
+| **Kind 1 attestation** | Valid IRN + GST IMS "Accept" by anchor + active repayment routing. The core trust signal. |
+| **IRN** | Invoice Reference Number — a 64-character SHA-256 hash from the GST e-invoicing portal. |
+| **IMS** | Invoice Management System — the GST portal feature where anchors Accept/Reject/leave-Pending an invoice. |
+| **D0–D3** | The platform's own decision gates (Kind 1 gate, data sufficiency, derived attributes, lender pre-screen). |
+| **D4** | The lender's own underwriting decision — never made by this platform. |
+| **Decision receipt** | A signed, content-addressed record of a rule evaluation — the audit trail. |
+| **Trust Graph** | The platform's proprietary layer correlating attestation + origination + repayment across every anchor and lender — no single lender can replicate this view. |
+| **OCEN 4.0** | India's Open Credit Enablement Network — the protocol connecting this Loan Agent to multiple lenders via a single integration. |
+| **DPDP** | India's Digital Personal Data Protection Act, 2023 — governs consent, PII handling, retention, and breach response on this platform. |
+| **AA** | Account Aggregator — the consent-based framework used to fetch a vendor's bank statements and GST data. |
+
+---
+
+## 7. Where to Go Next
+
+- Technical setup / running locally: [`userguide.md`](userguide.md)
+- DPDP compliance implementation detail: [`dpdp-implementation-note.md`](dpdp-implementation-note.md)
+- Architecture principles and tech stack: [`CLAUDE.md`](../CLAUDE.md)

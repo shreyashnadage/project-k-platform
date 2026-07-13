@@ -11,6 +11,14 @@ identity:
   logo_icon: "munimco_m_icon_cream_512.png"
   logo_icon_svg: "munimco_m_icon_cream.svg"
 
+# Name for the ops/admin back-office system (currently a Frappe-based app).
+# This is the ONLY place "the back-office's name" should be defined — every
+# doc, log line, and generated Frappe app metadata string should read this
+# instead of hardcoding a literal name, so a rebrand never requires find/replace.
+back_office:
+  name: "Munimco Ops"
+  short_name: "Ops"
+
 colors:
   # Brand core
   cream: "#F5F0E8"           # Page bg (light), sidebar alt, marketing/portal

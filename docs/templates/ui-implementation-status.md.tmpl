@@ -1,0 +1,65 @@
+# UI Implementation Status
+
+**As of 13 Jul 2026 — branch `feat/rbac-and-role-uis`**
+
+## Headline: no frontend/UI code has been built yet
+
+This note exists to answer precisely: what UI work has actually shipped, versus what's planned. The honest answer is that the **role-based UI plan** (see `C:\Users\shrey\.claude\plans\lazy-honking-valiant.md`) is still in its first, backend-only phase. No Platform Console, no vendor CIAM, no new frontend repo exists yet.
+
+What follows is a status breakdown so nothing is overstated.
+
+---
+
+## What's actually visual/UI-facing today
+
+### {{PRODUCT_NAME}} brand system — done, committed
+
+The only UI-facing work that has shipped is the **visual identity** layer, committed in earlier work on this branch's ancestry (`aa1e2bd` and related commits):
+
+- `brand/brand.yaml` — single source of truth for name, logo, color palette, typography
+- `brand/generate_css.py` + `brand/generated/` — generates back-office (Frappe) Desk/portal CSS from the brand config
+- `brand/backoffice_app/munimco_brand/` — installable Frappe custom app applying the theme
+- `GET /brand` API endpoint — serves the same theme tokens as JSON, for any future frontend to consume
+
+This re-skins the **existing {{BACK_OFFICE_NAME}}** (ops staff's current UI) with the {{PRODUCT_NAME}} palette (navy/cream/teal/saffron) and logo. It does not add any new screens, pages, or interactivity — it's styling only.
+
+**This is not the Platform Console, PWA, or any of the role-specific UIs discussed below.** It's the visual foundation those UIs would draw from if/when they're built.
+
+---
+
+## Where the role-based UI plan actually stands
+
+The plan (approved and in progress) has four phases. Only the first is underway, and it is backend authorization work, not UI:
+
+| Phase | Status | What it covers |
+|---|---|---|
+| **Phase 1 — RBAC hardening** | **Implemented, tested, not yet committed** | Backend-only. Fail-closed authorization, mandatory JWT signature verification, service-to-service auth, inbound webhook signature checks. No UI. |
+| **Phase 2 — Borrower/Vendor CIAM (Ory Kratos + Hydra)** | **Not started** | Would let vendors actually log in (today `/vendors/*` and `/loans/*` are fully open, no identity binding). This is the prerequisite for the external `project-k-borrower-app` PWA to have real auth. |
+| **Phase 3 — Platform Console** (new repo, ops + admin + lender views) | **Not started** | The actual UI surface for ops staff, admins, and lender analysts. No repo has been created yet. |
+| **Phase 4 — Anchor Portal** | **Deferred by design** | No screens planned yet; only groundwork so it can be added later without rework. |
+
+### Why Phase 1 had to come first
+
+Every later UI phase assumes a trustworthy authorization layer. Before building a login screen or a Platform Console, the plan fixes the RBAC gaps found during investigation (fail-open defaults, a JWT verification path that silently fell back to unverified decoding, three internal services with zero auth, DPDP rights/consent endpoints reachable by anyone). None of that is visual — it's the plumbing a real UI would plug into.
+
+---
+
+## Phase 1 detail — what's implemented but not yet committed
+
+This is backend-only and has no user-facing surface, but it's worth being precise about scope since it's the immediate predecessor to any UI work:
+
+- `authz.yaml` — new, explicit public-path / always-protected-path allow-list
+- `libs/common/middleware.py` — rewritten to fail closed by default, mandatory JWKS verification, no silent exception swallowing
+- `libs/common/service_auth.py` — new, service-to-service bearer-token verification for `ddp_engine`, `vdp_wedge`, `trust_graph`
+- `libs/common/webhook_auth.py` — new, HMAC signature verification for the inbound `/invoices/captured` webhook
+- `services/borrower_gateway/app.py` — OCEN JWS dev-bypass now gated to sandbox mode only; webhook signature check wired in
+- `services/borrower_gateway/ops_api.py` — `OPS_API_KEY_FALLBACK_ENABLED` flag added (transitional, ahead of Phase 3's per-user login cutover)
+- `tests/test_rbac_hardening.py`, `tests/test_service_auth.py` — 35 new tests, all passing; full existing suite (185 tests) verified with no regressions
+
+**Status:** verified working, sitting in the working tree on `feat/rbac-and-role-uis`, not yet committed. (There is also unrelated, pre-existing uncommitted work on this branch — a Udyam-verification feature and a staged deletion of `sandbox/` — that predates this session and does not belong to this plan; it has been left untouched.)
+
+---
+
+## Bottom line
+
+If the question is "what can a user click on today that wasn't there before": **nothing new.** The {{BACK_OFFICE_NAME}} looks different ({{PRODUCT_NAME}} colors/logo). Everything else in this plan so far is backend authorization groundwork, verified by tests, waiting to be committed — the Platform Console, vendor login, and any other new screens come in Phases 2–3, which haven't started.

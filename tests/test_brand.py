@@ -26,6 +26,11 @@ class TestBrandConfig:
         assert config.identity.name
         assert len(config.identity.name) > 0
 
+    def test_back_office_name_is_set(self):
+        config = load_brand()
+        assert config.back_office.name
+        assert config.back_office.short_name
+
     def test_identity_logo_files_exist(self):
         config = load_brand()
         assert config.identity.logo_full_path().exists()
@@ -104,10 +109,10 @@ class TestBrandCSSGeneration:
         assert "Plus+Jakarta+Sans" in html
 
     def test_generated_files_exist(self):
-        frappe_dir = Path(__file__).parent.parent / "brand" / "frappe"
-        assert (frappe_dir / "desk.css").exists()
-        assert (frappe_dir / "portal.css").exists()
-        assert (frappe_dir / "head_fonts.html").exists()
+        generated_dir = Path(__file__).parent.parent / "brand" / "generated"
+        assert (generated_dir / "desk.css").exists()
+        assert (generated_dir / "portal.css").exists()
+        assert (generated_dir / "head_fonts.html").exists()
 
 
 class TestBrandAPI:
@@ -121,6 +126,8 @@ class TestBrandAPI:
             assert response.status_code == 200
             data = response.json()
             assert "name" in data
+            assert "back_office" in data
+            assert data["back_office"]["name"]
             assert "colors" in data
             assert "typography" in data
             assert "shape" in data

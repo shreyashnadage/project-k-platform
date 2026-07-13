@@ -1,6 +1,6 @@
-"""Ops Command API — endpoints for Frappe back-office to command the platform.
+"""Ops Command API — endpoints for the ops back-office to command the platform.
 
-Auth: Bearer API key validated via middleware. Frappe stores the key in site_config.json.
+Auth: Bearer API key validated via middleware.
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ from .ops_models import (
     OpsFlagRequest,
     OpsHoldRequest,
     OpsReleaseRequest,
+    UdyamVerifyRequest,
+    UdyamVerifyResponse,
     VendorActivateRequest,
     VendorInviteRequest,
     VendorInviteResponse,
@@ -359,26 +361,91 @@ async def onboard_anchor(
     )
 
 
+# ─── Udyam Verification ──────────────────────────────────────
+
+
+@vendors_router.post("/verify-udyam", response_model=UdyamVerifyResponse)
+async def verify_udyam(request: UdyamVerifyRequest) -> UdyamVerifyResponse:
+    """Verify Udyam number and return enterprise details for auto-population."""
+    from libs.integrations.factory import get_udyam_client
+
+    client = get_udyam_client()
+    result = await client.verify(request.udyam_number)
+
+    logger.info(
+        "udyam_verified",
+        udyam_number=request.udyam_number[:10] + "***",
+        valid=result.valid,
+        enterprise_type=result.enterprise_type,
+    )
+
+    return UdyamVerifyResponse(
+        valid=result.valid,
+        udyam_number=result.udyam_number,
+        enterprise_name=result.enterprise_name,
+        enterprise_type=result.enterprise_type,
+        major_activity=result.major_activity,
+        organization_type=result.organization_type,
+        date_of_incorporation=result.date_of_incorporation,
+        state=result.state,
+        district=result.district,
+        city=result.city,
+        pincode=result.pincode,
+        address=result.address,
+        nic_codes=result.nic_codes,
+        owner_name=result.owner_name,
+    )
+
+
 # ─── Vendor Self-Registration (PWA) ────────────────────────────
 
 
 @vendors_router.post("/register", response_model=VendorRegisterResponse)
 async def register_vendor(request: VendorRegisterRequest) -> VendorRegisterResponse:
-    """Vendor self-registration from PWA. No auth required (public endpoint)."""
+    """Vendor self-registration from PWA. No auth required (public endpoint).
+
+    If udyam_number is provided, auto-verifies and populates enterprise data.
+    """
     vendor_id = uuid.uuid4()
+    udyam_data: dict = {}
+
+    if request.udyam_number:
+        from libs.integrations.factory import get_udyam_client
+
+        client = get_udyam_client()
+        result = await client.verify(request.udyam_number)
+        if result.valid:
+            udyam_data = {
+                "enterprise_name": result.enterprise_name,
+                "enterprise_type": result.enterprise_type,
+                "udyam_category": result.enterprise_type,
+                "address": result.address,
+                "state": result.state,
+                "district": result.district,
+                "city": result.city,
+                "pincode": result.pincode,
+                "nic_codes": result.nic_codes,
+                "owner_name": result.owner_name,
+            }
 
     logger.info(
         "vendor_self_registered",
         vendor_id=str(vendor_id),
         gstin=request.gstin,
         name=request.name,
+        udyam_verified=bool(udyam_data),
     )
 
     _emit_event(
         EventType.VENDOR_ONBOARDED,
         entity_id=vendor_id,
         entity_type="vendor",
-        payload={"gstin": request.gstin, "name": request.name, "source": "pwa_self_register"},
+        payload={
+            "gstin": request.gstin,
+            "name": request.name,
+            "source": "pwa_self_register",
+            **udyam_data,
+        },
     )
 
     return VendorRegisterResponse(

@@ -1,6 +1,6 @@
-"""Redpanda consumer that forwards platform events to Frappe as webhooks.
+"""Redpanda consumer that forwards platform events to the ops back-office as webhooks.
 
-Run standalone: uv run python -m services.frappe_sync.consumer
+Run standalone: uv run python -m services.backoffice_sync.consumer
 """
 
 from __future__ import annotations
@@ -17,16 +17,16 @@ from .config import (
     KAFKA_GROUP_ID,
     KAFKA_TOPIC,
 )
-from .webhook_client import FrappeWebhookClient
+from .webhook_client import BackOfficeWebhookClient
 
 logger = structlog.get_logger()
 
 
-class FrappeSyncConsumer:
-    """Consumes events from Redpanda and pushes webhooks to Frappe."""
+class BackOfficeSyncConsumer:
+    """Consumes events from Redpanda and pushes webhooks to the ops back-office."""
 
     def __init__(self) -> None:
-        self._webhook_client = FrappeWebhookClient()
+        self._webhook_client = BackOfficeWebhookClient()
         self._running = False
 
     async def start(self) -> None:
@@ -46,7 +46,7 @@ class FrappeSyncConsumer:
         self._running = True
 
         logger.info(
-            "frappe_sync_consumer_started",
+            "backoffice_sync_consumer_started",
             topic=KAFKA_TOPIC,
             group_id=KAFKA_GROUP_ID,
             bootstrap=KAFKA_BOOTSTRAP,
@@ -85,14 +85,14 @@ class FrappeSyncConsumer:
 
         finally:
             consumer.close()
-            logger.info("frappe_sync_consumer_stopped")
+            logger.info("backoffice_sync_consumer_stopped")
 
     def stop(self) -> None:
         self._running = False
 
 
 async def main() -> None:
-    consumer = FrappeSyncConsumer()
+    consumer = BackOfficeSyncConsumer()
 
     import contextlib
 

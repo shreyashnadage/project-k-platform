@@ -1,12 +1,10 @@
-"""Tests for Frappe Sync webhook client and consumer config."""
+"""Tests for Back-Office Sync webhook client and consumer config."""
 
 from __future__ import annotations
 
 import hashlib
 import hmac
 import json
-
-import pytest
 
 
 class TestWebhookClient:
@@ -17,10 +15,10 @@ class TestWebhookClient:
         assert len(expected) == 64
 
     def test_build_headers_includes_signature(self):
-        from services.frappe_sync.webhook_client import FrappeWebhookClient
+        from services.backoffice_sync.webhook_client import BackOfficeWebhookClient
 
-        client = FrappeWebhookClient(
-            frappe_url="http://localhost:8080",
+        client = BackOfficeWebhookClient(
+            backoffice_url="http://localhost:8080",
             api_key="test-key",
             api_secret="test-secret",
             webhook_secret="webhook-secret",
@@ -34,11 +32,11 @@ class TestWebhookClient:
         assert headers["Content-Type"] == "application/json"
 
     def test_signature_is_valid_hmac(self):
-        from services.frappe_sync.webhook_client import FrappeWebhookClient
+        from services.backoffice_sync.webhook_client import BackOfficeWebhookClient
 
         secret = "my-webhook-secret"
-        client = FrappeWebhookClient(
-            frappe_url="http://localhost:8080",
+        client = BackOfficeWebhookClient(
+            backoffice_url="http://localhost:8080",
             api_key="",
             api_secret="",
             webhook_secret=secret,
@@ -52,7 +50,7 @@ class TestWebhookClient:
 
 class TestConsumerConfig:
     def test_events_to_forward_includes_loan_events(self):
-        from services.frappe_sync.config import EVENTS_TO_FORWARD
+        from services.backoffice_sync.config import EVENTS_TO_FORWARD
 
         assert "loan.application_created" in EVENTS_TO_FORWARD
         assert "loan.offer_received" in EVENTS_TO_FORWARD
@@ -60,14 +58,14 @@ class TestConsumerConfig:
         assert "loan.closed" in EVENTS_TO_FORWARD
 
     def test_events_to_forward_includes_ops_events(self):
-        from services.frappe_sync.config import EVENTS_TO_FORWARD
+        from services.backoffice_sync.config import EVENTS_TO_FORWARD
 
         assert "ops.hold_applied" in EVENTS_TO_FORWARD
         assert "ops.hold_released" in EVENTS_TO_FORWARD
         assert "ops.escalated" in EVENTS_TO_FORWARD
 
     def test_events_to_forward_includes_onboarding_events(self):
-        from services.frappe_sync.config import EVENTS_TO_FORWARD
+        from services.backoffice_sync.config import EVENTS_TO_FORWARD
 
         assert "vendor.onboarded" in EVENTS_TO_FORWARD
         assert "vendor.invited" in EVENTS_TO_FORWARD

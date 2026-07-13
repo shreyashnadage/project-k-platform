@@ -33,7 +33,7 @@ public_paths:
     reason: "Loan status check. Pre-CIAM — same rationale as /loans/apply."
 
   - path: /invoices/captured
-    reason: "ERP/Frappe connector webhook. Protected by inbound HMAC signature verification (FRAPPE_WEBHOOK_SECRET) in the endpoint handler itself, not by this middleware."
+    reason: "ERP/Frappe connector webhook. Protected by inbound HMAC signature verification (BACKOFFICE_WEBHOOK_SECRET) in the endpoint handler itself, not by this middleware."
 
   - path: /v4.0.0alpha/loanApplications/
     reason: "OCEN network lender callbacks. Protected by detached JWS signature verification (RFC 7797) in the endpoint handler, not by this middleware. Signature is mandatory outside INTEGRATION_MODE=sandbox."

@@ -1,4 +1,4 @@
-"""HMAC-signed webhook client for pushing events to Frappe."""
+"""HMAC-signed webhook client for pushing events to the ops back-office."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 import structlog
 
-from .config import FRAPPE_API_KEY, FRAPPE_API_SECRET, FRAPPE_URL, WEBHOOK_SECRET
+from .config import BACKOFFICE_API_KEY, BACKOFFICE_API_SECRET, BACKOFFICE_URL, WEBHOOK_SECRET
 
 logger = structlog.get_logger()
 
@@ -18,21 +18,21 @@ MAX_RETRIES = 5
 BACKOFF_BASE = 1.0
 
 
-class FrappeWebhookClient:
-    """Delivers signed webhooks to Frappe's ocen_ops app."""
+class BackOfficeWebhookClient:
+    """Delivers signed webhooks to the back-office's ocen_ops app."""
 
     def __init__(
         self,
-        frappe_url: str = FRAPPE_URL,
-        api_key: str = FRAPPE_API_KEY,
-        api_secret: str = FRAPPE_API_SECRET,
+        backoffice_url: str = BACKOFFICE_URL,
+        api_key: str = BACKOFFICE_API_KEY,
+        api_secret: str = BACKOFFICE_API_SECRET,
         webhook_secret: str = WEBHOOK_SECRET,
     ) -> None:
-        self._frappe_url = frappe_url.rstrip("/")
+        self._backoffice_url = backoffice_url.rstrip("/")
         self._api_key = api_key
         self._api_secret = api_secret
         self._webhook_secret = webhook_secret
-        self._endpoint = f"{self._frappe_url}/api/method/ocen_ops.api.receive_platform_webhook"
+        self._endpoint = f"{self._backoffice_url}/api/method/ocen_ops.api.receive_platform_webhook"
 
     def _sign_payload(self, payload_bytes: bytes) -> str:
         """Generate HMAC-SHA256 signature for the webhook payload."""

@@ -1,4 +1,4 @@
-"""Ops Command API models — Frappe back-office → Platform."""
+"""Ops Command API models — back-office → Platform."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from dpdp_core.classification.field_meta import dpdp_field
 from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTier
 from pydantic import BaseModel, Field
 
+from brand.brand import load_brand
+
 # ─── Ops Command Requests ──────────────────────────────────────
 
 
@@ -18,7 +20,9 @@ class OpsHoldRequest(BaseModel):
 
     application_id: UUID
     reason: str = Field(..., min_length=3, max_length=500)
-    held_by: str = Field(..., description="Frappe user who initiated the hold")
+    held_by: str = Field(
+        ..., description=f"{load_brand().back_office.name} user who initiated the hold"
+    )
 
 
 class OpsReleaseRequest(BaseModel):
@@ -197,6 +201,31 @@ class VendorActivateRequest(BaseModel):
     name: str | None = None
     udyam_number: str | None = None
     udyam_category: str | None = None
+
+
+class UdyamVerifyRequest(BaseModel):
+    """Request to verify a Udyam number and retrieve enterprise details."""
+
+    udyam_number: str = Field(..., pattern=r"^UDYAM-[A-Z]{2}-\d{2}-\d{7}$")
+
+
+class UdyamVerifyResponse(BaseModel):
+    """Udyam verification result with auto-populated enterprise data."""
+
+    valid: bool
+    udyam_number: str
+    enterprise_name: str | None = None
+    enterprise_type: str | None = None
+    major_activity: str | None = None
+    organization_type: str | None = None
+    date_of_incorporation: str | None = None
+    state: str | None = None
+    district: str | None = None
+    city: str | None = None
+    pincode: str | None = None
+    address: str | None = None
+    nic_codes: list[dict] = Field(default_factory=list)
+    owner_name: str | None = None
 
 
 class AnchorOnboardRequest(BaseModel):

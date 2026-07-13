@@ -1,12 +1,12 @@
-"""Generate Frappe desk CSS from brand.yaml.
+"""Generate back-office (Frappe) desk CSS from brand.yaml.
 
 Run this whenever brand.yaml changes:
     python -m brand.generate_css
 
 Outputs:
-    brand/frappe/munimco_desk.css    — hook via app_include_css
-    brand/frappe/munimco_portal.css  — hook via web_include_css
-    brand/frappe/head_fonts.html     — inject into Website Theme <head>
+    brand/generated/desk.css       — hook via app_include_css
+    brand/generated/portal.css     — hook via web_include_css
+    brand/generated/head_fonts.html — inject into Website Theme <head>
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from brand.brand import load_brand
 
-OUTPUT_DIR = Path(__file__).parent / "frappe"
+OUTPUT_DIR = Path(__file__).parent / "generated"
 
 
 def generate_desk_css() -> str:

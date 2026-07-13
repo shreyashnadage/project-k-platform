@@ -1,8 +1,8 @@
 """Shared inbound HMAC signature verification for webhook-style endpoints.
 
-Mirrors the outbound signing scheme in services/frappe_sync/webhook_client.py
+Mirrors the outbound signing scheme in services/backoffice_sync/webhook_client.py
 (HMAC-SHA256 over the raw request body, hex-encoded) so the same secret and
-algorithm are used on both ends of the platform<->Frappe webhook bridge.
+algorithm are used on both ends of the platform<->back-office webhook bridge.
 """
 
 from __future__ import annotations

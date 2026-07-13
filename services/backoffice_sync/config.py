@@ -1,19 +1,20 @@
-"""Configuration for Frappe Sync Service."""
+"""Configuration for Back-Office Sync Service."""
 
 from __future__ import annotations
 
 import os
 
-FRAPPE_URL = os.environ.get("FRAPPE_URL", "http://localhost:8080")
-FRAPPE_API_KEY = os.environ.get("FRAPPE_API_KEY", "")
-FRAPPE_API_SECRET = os.environ.get("FRAPPE_API_SECRET", "")
-WEBHOOK_SECRET = os.environ.get("FRAPPE_WEBHOOK_SECRET", "dev-webhook-secret")
+BACKOFFICE_URL = os.environ.get("BACKOFFICE_URL", "http://localhost:8080")
+BACKOFFICE_API_KEY = os.environ.get("BACKOFFICE_API_KEY", "")
+BACKOFFICE_API_SECRET = os.environ.get("BACKOFFICE_API_SECRET", "")
+WEBHOOK_SECRET = os.environ.get("BACKOFFICE_WEBHOOK_SECRET", "dev-webhook-secret")
 
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC", "ocen.trade-events.v1")
-KAFKA_GROUP_ID = os.environ.get("KAFKA_GROUP_ID", "frappe-sync-consumer")
+KAFKA_GROUP_ID = os.environ.get("KAFKA_GROUP_ID", "backoffice-sync-consumer")
 
 EVENTS_TO_FORWARD = {
+    "invoice.kind1_attested",
     "loan.application_created",
     "loan.decision_evaluated",
     "loan.submitted_to_lender",

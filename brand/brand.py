@@ -33,6 +33,11 @@ class BrandIdentity(BaseModel):
         return BRAND_DIR / "assets" / self.logo_icon
 
 
+class BrandBackOffice(BaseModel):
+    name: str
+    short_name: str
+
+
 class BrandColors(BaseModel):
     cream: str
     navy: str
@@ -90,6 +95,7 @@ class BrandShape(BaseModel):
 
 class BrandConfig(BaseModel):
     identity: BrandIdentity
+    back_office: BrandBackOffice
     colors: BrandColors
     typography: BrandTypography
     shape: BrandShape

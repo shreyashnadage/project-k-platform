@@ -83,12 +83,17 @@ schemas:  ## Register schemas with Schema Registry
 	./scripts/register-schemas.sh
 
 # ─── Brand ─────────────────────────────────────────────────
-brand-css:  ## Regenerate Frappe CSS from brand.yaml
+brand-css:  ## Regenerate back-office CSS from brand.yaml
 	uv run python -m brand.generate_css
 
-brand-deploy:  ## Build Frappe app with latest brand assets
+brand-docs:  ## Render docs/templates/*.md.tmpl into docs/ from brand.yaml
+	uv run python -m brand.render_docs
+
+brand-deploy:  ## Build back-office app with latest brand assets and docs
 	uv run python -m brand.generate_css
-	uv run python -m brand.deploy_to_frappe
+	uv run python -m brand.generate_hooks
+	uv run python -m brand.render_docs
+	uv run python -m brand.deploy_backoffice_app
 
 # ─── Cleanup ─────────────────────────────────────────────
 clean:  ## Nuke volumes and rebuild
