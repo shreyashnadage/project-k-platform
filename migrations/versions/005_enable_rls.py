@@ -31,8 +31,26 @@ PREREQUISITES before running in any environment with live traffic:
      these two tables, or those endpoints will start returning empty
      results.
 
+Branches off "003", not "004" — deliberately. This migration originally
+chained after 004 (the plaintext-PII-drop / encrypted-column-rename
+migration), but 004 is not runnable against the current codebase: the
+"Phase 3 cutover" its own docstring lists as a prerequisite (application
+code updated to read from _enc columns) never happened, and
+libs/db/models.py + libs/db/data_source.py still directly query/assign
+the plaintext gstin/name/anchor_gstin/vendor_gstin columns 004 would
+drop — in fact 004 and 005 as originally written produced two divergent,
+unmergeable alembic heads (verify with `alembic heads`), since nothing
+in migrations/versions/ ever chained past both of them. RLS tenant
+isolation is an independent concern from that encryption cutover — this
+migration's policies already target the live plaintext anchor_gstin
+column, so there's no reason to block it on 004. 004 has been moved out
+of migrations/versions/ (see migrations/deferred/README.md) so it can't
+be run out of sequence and break the schema; re-introduce it, updated
+for whatever the schema looks like at that time, once the encryption
+cutover is actually scoped and executed as its own piece of work.
+
 Revision ID: 005
-Revises: 004
+Revises: 003
 Create Date: 2026-07-13
 """
 
@@ -41,7 +59,7 @@ from __future__ import annotations
 from alembic import op
 
 revision: str = "005"
-down_revision: str = "004"
+down_revision: str = "003"
 branch_labels: str | None = None
 depends_on: str | None = None
 

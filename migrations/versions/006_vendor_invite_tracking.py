@@ -4,19 +4,16 @@ Enables real persistence for the ops vendor invite/activate flow
 (services/borrower_gateway/ops_api.py), which previously never wrote to
 the vendors table at all.
 
-Branches off "003", not "005" — deliberately. Migrations 004/005 (the
-zero-downtime PII encryption cutover) rename/drop the plaintext gstin/name
-columns this migration and the rest of the DPDP rights/retention code
-(libs/db/data_source.py, libs/db/retention_handlers.py) still directly
-query and assign — applying 004 today would break both of those, and 005's
-RLS policies still reference the pre-004 plaintext `anchor_gstin` column
-name on loan_applications, so 004→005 as currently written don't even
-chain correctly. Until that's resolved in a dedicated pass, this migration
-targets the last internally-consistent schema state (003) that the rest
-of the codebase already assumes.
+Branches off "005", not "004" — deliberately. Migration 005 (RLS) was
+re-parented off 003 to unblock it from 004 (the zero-downtime PII
+encryption cutover, which is not runnable against the current codebase —
+see 005's docstring for the full explanation and migrations/deferred/
+for where 004 now lives). This migration chains after 005 so the active
+revision graph is a single line: 001 → 002 → 003 → 005 → 006, with no
+ambiguous heads.
 
 Revision ID: 006
-Revises: 003
+Revises: 005
 Create Date: 2026-07-13
 """
 
@@ -26,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "006"
-down_revision: str = "003"
+down_revision: str = "005"
 branch_labels: str | None = None
 depends_on: str | None = None
 

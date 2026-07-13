@@ -95,6 +95,57 @@ def _fake_request(invoice_amount):
     )
 
 
+class TestMigrationChainConsistency:
+    """The alembic revision graph in migrations/versions/ must form a single
+    unbroken chain with exactly one head. This would have caught the real
+    004/005 break: 005 originally chained after 004, but 004 drops columns
+    (vendor/anchor plaintext gstin/name) that libs/db/models.py and
+    libs/db/data_source.py still directly query — 004 was never actually
+    runnable, and nothing chained past both 004 and 005, producing two
+    divergent heads. 004 now lives in migrations/deferred/, out of the
+    active graph; this test guards against a future migration accidentally
+    re-introducing a fork."""
+
+    def test_versions_directory_has_exactly_one_head(self):
+        import ast
+
+        versions_dir = os.path.join(REPO_ROOT, "migrations", "versions")
+        revisions: dict[str, str | None] = {}
+        for fname in os.listdir(versions_dir):
+            if not fname.endswith(".py") or fname == "__init__.py":
+                continue
+            path = os.path.join(versions_dir, fname)
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read(), filename=fname)
+            values: dict[str, str | None] = {}
+            for node in tree.body:
+                if not isinstance(node, ast.AnnAssign) or not isinstance(node.target, ast.Name):
+                    continue
+                if node.target.id not in ("revision", "down_revision"):
+                    continue
+                if isinstance(node.value, ast.Constant):
+                    values[node.target.id] = node.value.value
+            assert "revision" in values, f"{fname} has no `revision` assignment"
+            revisions[values["revision"]] = values.get("down_revision")
+
+        down_revisions = set(revisions.values())
+        heads = [rev for rev in revisions if rev not in down_revisions]
+        assert len(heads) == 1, (
+            f"Expected exactly one alembic head in migrations/versions/, found "
+            f"{heads}. Multiple heads mean two migrations both claim to be the "
+            f"latest — alembic upgrade head will fail or pick one ambiguously."
+        )
+
+    def test_migration_004_is_not_in_the_active_chain(self):
+        versions_dir = os.path.join(REPO_ROOT, "migrations", "versions")
+        assert "004_drop_plaintext_columns.py" not in os.listdir(versions_dir), (
+            "Migration 004 drops columns libs/db/models.py still queries directly "
+            "(see migrations/deferred/README.md) — it must not be reintroduced to "
+            "migrations/versions/ without also updating the ORM models and every "
+            "call site in the same change."
+        )
+
+
 class TestGateOutputNormalization:
     """D0/D1 rulesets use hitPolicy "first" -> EvaluationResult.output is a
     dict. D2/D3 use "collect" with multiple named outputs -> output is a
