@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from sandbox.scenarios.loader import ScenarioState, load_scenario, reset_scenario
+from ocen_sandbox import SandboxDSRClient
+from ocen_sandbox.scenarios.loader import ScenarioState, load_scenario, reset_scenario
 
 
 class TestScenarioLoader:
@@ -59,8 +60,6 @@ class TestScenarioLoader:
 class TestSandboxDSRClient:
     async def test_access_default(self):
         reset_scenario()
-        from sandbox.clients.dsr_client import SandboxDSRClient
-
         client = SandboxDSRClient()
         result = await client.execute_access("27AADCB2230M1ZT")
         assert result["status"] == "fulfilled"
@@ -68,8 +67,6 @@ class TestSandboxDSRClient:
 
     async def test_erasure_default(self):
         reset_scenario()
-        from sandbox.clients.dsr_client import SandboxDSRClient
-
         client = SandboxDSRClient()
         result = await client.execute_erasure("27AADCB2230M1ZT")
         assert result["status"] == "fulfilled"
@@ -77,8 +74,6 @@ class TestSandboxDSRClient:
 
     async def test_erasure_with_scenario(self):
         scenario = load_scenario("dsr_erasure_with_legal_hold")
-        from sandbox.clients.dsr_client import SandboxDSRClient
-
         client = SandboxDSRClient()
         result = await client.execute_erasure("27AADCB2230M1ZT")
         assert result["status"] == "held"
