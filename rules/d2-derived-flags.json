@@ -24,6 +24,8 @@
             "in-dso": "",
             "in-dilution": "",
             "in-anchor-dpd": "",
+            "in-gst-compliance": "",
+            "in-vintage": "",
             "out-flag": "\"high_concentration\"",
             "out-severity": "\"high\""
           },
@@ -34,6 +36,8 @@
             "in-dso": "> 90",
             "in-dilution": "",
             "in-anchor-dpd": "",
+            "in-gst-compliance": "",
+            "in-vintage": "",
             "out-flag": "\"elevated_dso\"",
             "out-severity": "\"medium\""
           },
@@ -44,6 +48,8 @@
             "in-dso": "",
             "in-dilution": "> 0.15",
             "in-anchor-dpd": "",
+            "in-gst-compliance": "",
+            "in-vintage": "",
             "out-flag": "\"high_dilution\"",
             "out-severity": "\"high\""
           },
@@ -54,7 +60,33 @@
             "in-dso": "",
             "in-dilution": "",
             "in-anchor-dpd": "> 30",
+            "in-gst-compliance": "",
+            "in-vintage": "",
             "out-flag": "\"anchor_payment_delays\"",
+            "out-severity": "\"medium\""
+          },
+          {
+            "_id": "rule-6",
+            "_description": "Low GST compliance",
+            "in-concentration": "",
+            "in-dso": "",
+            "in-dilution": "",
+            "in-anchor-dpd": "",
+            "in-gst-compliance": "< 70",
+            "in-vintage": "",
+            "out-flag": "\"low_gst_compliance\"",
+            "out-severity": "\"high\""
+          },
+          {
+            "_id": "rule-7",
+            "_description": "Low relationship vintage",
+            "in-concentration": "",
+            "in-dso": "",
+            "in-dilution": "",
+            "in-anchor-dpd": "",
+            "in-gst-compliance": "",
+            "in-vintage": "< 6",
+            "out-flag": "\"low_vintage\"",
             "out-severity": "\"medium\""
           },
           {
@@ -64,6 +96,8 @@
             "in-dso": "<= 90",
             "in-dilution": "<= 0.15",
             "in-anchor-dpd": "<= 30",
+            "in-gst-compliance": ">= 70",
+            "in-vintage": ">= 6",
             "out-flag": "\"none\"",
             "out-severity": "\"none\""
           }
@@ -72,7 +106,9 @@
           { "id": "in-concentration", "field": "revenue_concentration", "name": "Revenue Concentration" },
           { "id": "in-dso", "field": "days_sales_outstanding", "name": "DSO (days)" },
           { "id": "in-dilution", "field": "dilution_rate", "name": "Dilution Rate" },
-          { "id": "in-anchor-dpd", "field": "anchor_avg_dpd", "name": "Anchor Avg DPD" }
+          { "id": "in-anchor-dpd", "field": "anchor_avg_dpd", "name": "Anchor Avg DPD" },
+          { "id": "in-gst-compliance", "field": "gst_compliance_score", "name": "GST Compliance Score" },
+          { "id": "in-vintage", "field": "vintage_months", "name": "Vintage (months)" }
         ],
         "outputs": [
           { "id": "out-flag", "field": "flag", "name": "Risk Flag" },

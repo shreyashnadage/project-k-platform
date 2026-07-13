@@ -113,7 +113,9 @@ class LoanOriginationWorkflow:
                 CheckDPDPConsentInput(
                     loan_application_id=loan_application_id,
                     data_principal_id=data_principal_id,
-                    purposes=["loan_origination", "kind1_attestation"],
+                    # purposes omitted — CheckDPDPConsentInput.__post_init__
+                    # (activities.py, outside the workflow sandbox) resolves
+                    # the default from dpdp_config.yaml.
                 ),
                 start_to_close_timeout=activity_timeout,
                 retry_policy=retry,

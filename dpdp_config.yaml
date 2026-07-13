@@ -50,6 +50,8 @@ rbac:
     allowed_roles: [platform-admin]
   - path_prefix: /dpdp/consent
     allowed_roles: [platform-admin]
+  - path_prefix: /dpdp/audit
+    allowed_roles: [platform-admin]
 
 audit:
   topic: dpdp.audit-log.v1

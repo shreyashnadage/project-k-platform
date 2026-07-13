@@ -11,6 +11,7 @@ from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTie
 from pydantic import BaseModel, Field
 
 from brand.brand import load_brand
+from libs.common.models import RETENTION_LOAN_APPLICATION, RETENTION_VENDOR_CONTACT
 
 # ─── Ops Command Requests ──────────────────────────────────────
 
@@ -73,14 +74,14 @@ class OpsApplicationDetail(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default="",
     )
     anchor_gstin: str = dpdp_field(
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default="",
     )
     amount_requested: Decimal | None = None
@@ -112,14 +113,14 @@ class VendorInviteRequest(BaseModel):
         category=DPDPCategory.NAME,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=...,
     )
     gstin: str = dpdp_field(
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )
@@ -127,7 +128,7 @@ class VendorInviteRequest(BaseModel):
         category=DPDPCategory.CONTACT,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=1095,
+        retention_days=RETENTION_VENDOR_CONTACT,
         min_length=10,
         max_length=13,
     )
@@ -135,7 +136,7 @@ class VendorInviteRequest(BaseModel):
         category=DPDPCategory.GOVERNMENT_ID,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=None,
     )
     invited_by: str
@@ -157,14 +158,14 @@ class VendorRegisterRequest(BaseModel):
         category=DPDPCategory.NAME,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=...,
     )
     gstin: str = dpdp_field(
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )
@@ -172,7 +173,7 @@ class VendorRegisterRequest(BaseModel):
         category=DPDPCategory.CONTACT,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=1095,
+        retention_days=RETENTION_VENDOR_CONTACT,
         min_length=10,
         max_length=13,
     )
@@ -180,7 +181,7 @@ class VendorRegisterRequest(BaseModel):
         category=DPDPCategory.GOVERNMENT_ID,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=None,
     )
     udyam_category: str | None = None
@@ -235,14 +236,14 @@ class AnchorOnboardRequest(BaseModel):
         category=DPDPCategory.NAME,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=...,
     )
     gstin: str = dpdp_field(
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )

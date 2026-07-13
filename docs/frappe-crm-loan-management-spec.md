@@ -2,6 +2,8 @@
 
 **For:** the external `project-k-ocen-connector` repo (the Frappe/ERPNext custom app that receives platform webhooks — referred to elsewhere as the back-office/Munimco Ops connector). This document is a schema **spec**, not implementation — no DocType JSON or controller code ships from this repo. Building the actual DocTypes is a follow-up session against that repo.
 
+**Correction (reconciled against the live deployment):** an earlier version of this spec proposed a from-scratch `Loan Application` DocType. That name collides with Frappe's *official* Lending app (`frappe/lending`, GPLv3), which is genuinely installed alongside the connector on the live Frappe site — confirmed directly on the server, not assumed. The connector as actually built (`ocen_ops/lending/lifecycle.py`) already avoided this collision: it stages platform events in a custom `OCEN Loan Application` DocType, then creates/links real `Loan Application` → `Loan` → `Loan Disbursement` → `Loan Repayment` records in Frappe Lending's own schema once an offer is accepted. The spec below reflects that actual architecture, not the original from-scratch proposal. See "Loan Application" below for the full mapping.
+
 ## Why this exists
 
 The back-office (Frappe/ERPNext) is already the ops/admin system of record — ops staff work entirely inside it today (per `docs/user-guide-by-role.md`). Extending it with CRM-style tracking of every Anchor, Vendor, and Lender, plus a Loan Management view showing loan flows and Kind 1 attestation status, is a natural extension of what's already there — not a new system, and not the Platform Console (which is the *action* surface, per `docs/admin-console-contract.md`; this is the *record-keeping and reporting* surface, same split as today).
@@ -88,7 +90,11 @@ This DocType is a placeholder for reporting joins — populate manually until th
 
 Populated from: `invoice.kind1_attested` (newly forwarded this phase).
 
-### Loan Application
+### Loan Application (staging) + real Frappe Lending records
+
+Two layers, matching what's actually deployed — not a single flat DocType:
+
+**1. `OCEN Loan Application`** (custom staging DocType — every platform event lands here first, regardless of whether an offer is ever accepted):
 
 | Field | Frappe type | Source |
 |---|---|---|
@@ -102,11 +108,25 @@ Populated from: `invoice.kind1_attested` (newly forwarded this phase).
 | `current_gate` | Data | forwarded gate string, e.g. `d0-kind1-gate` |
 | `matched_lender_ids` | Table MultiSelect | `LoanApplication.matched_lender_ids` |
 | `selected_lender` | Link to Lender | `LoanApplication.selected_lender_id` |
-| `offer_amount`, `offer_rate_bps`, `offer_tenor_days` | Currency / Int / Int | `LoanApplication.offer` (`LoanOffer` fields) |
+| `offer_data` | JSON | raw `LoanApplication.offer` payload, before it's split into a real Loan |
+| `amount_sanctioned` | Currency | set once a real `Loan` is created (below) |
+| `linked_loan_application` | Link to (real) Loan Application | set by `create_loan_from_offer` |
+| `linked_loan` | Link to (real) Loan | set by `create_loan_from_offer` |
 | `ops_hold` | Check | from `ops.hold_applied` / `ops.hold_released` events |
 | `ops_flags` | Table (child, one row per `ops.flag_added` event) | flag_type, note, flagged_by |
 
-Populated from: `loan.application_created`, `loan.submitted_to_lender`, `loan.offer_received`, `loan.offer_accepted`, `loan.disbursed`, `loan.repayment_observed`, `loan.closed`, `loan.rejected`, `ops.hold_applied`, `ops.hold_released`, `ops.flag_added`, `ops.escalated`.
+Populated from: `loan.application_created`, `loan.submitted_to_lender`, `loan.offer_received`, `loan.rejected`, `ops.hold_applied`, `ops.hold_released`, `ops.flag_added`, `ops.escalated`.
+
+**2. Real Frappe Lending records** — created only once an offer is accepted, via `ocen_ops/lending/lifecycle.py`'s `create_loan_from_offer` / `create_disbursement` / `create_repayment` / `close_loan`:
+
+| Event | Frappe Lending action | Real DocType touched |
+|---|---|---|
+| `loan.offer_accepted` | `create_loan_from_offer` — creates + submits a `Loan Application`, then a `Loan` (status `Sanctioned`) | `Loan Application`, `Loan`, `Loan Type` (auto-created: "OCEN Vendor Receivable"), `Customer` (auto-created from vendor GSTIN if none exists) |
+| `loan.disbursed` | `create_disbursement` | `Loan Disbursement` (`against_loan` = the `Loan` above) |
+| `loan.repayment_observed` | `create_repayment` | `Loan Repayment` |
+| `loan.closed` | `close_loan` — sets `Loan.status = "Closed"` | `Loan` |
+
+These are Frappe Lending's own real schema (`applicant_type`/`applicant`, `loan_product`, `loan_amount`, `rate_of_interest`, `repayment_method`, etc.) — not custom fields. `OCEN Loan Application.linked_loan_application`/`linked_loan` are the join keys back to the staging record above.
 
 ### Decision Receipt (read-only, audit)
 
@@ -120,7 +140,7 @@ Populated from: `loan.application_created`, `loan.submitted_to_lender`, `loan.of
 | `engine_version` | Data | `DecisionReceipt.engine_version` |
 | `evaluated_at` | Datetime | `DecisionReceipt.evaluated_at` |
 
-Populated from: `loan.decision_evaluated` (payload today carries `gate`, `outcome`, `ruleset_hash`, `input_hash`, `receipt_id` — confirmed against the actual event, not assumed). Note: `signature` and `chain_hash` exist on the `DecisionReceipt` Pydantic model but the forwarded event payload does not currently carry them — if full chain-verification is needed inside the back-office UI (as opposed to only in the platform's own audit tooling), that's an additional field to add to the event payload, out of scope here.
+Populated from: `loan.decision_evaluated`. **Updated:** the payload now also carries `signature` and `chain_hash` — `evaluate_decision` (`services/la_orchestrator/activities.py`) was fixed to actually sign and persist every receipt via `ReceiptSigner`/`ChainVerifier` (previously it computed an ad-hoc, non-reproducible hash and never signed anything at all — the `decision_receipts` table was permanently empty). Add `signature`/`chain_hash` as two more Data columns on this DocType if full chain-verification inside the back-office UI is wanted; the platform's own audit trail is real now either way (queryable via `GET /dpdp/audit/receipts/{loan_application_id}`).
 
 ## What the connector repo's `receive_platform_webhook` handler needs to do
 
@@ -130,4 +150,4 @@ For each event type in `EVENTS_TO_FORWARD`, map its payload fields onto the DocT
 
 - Actual DocType JSON fixtures or Python controllers (belongs in `project-k-ocen-connector`).
 - The `Lender` DocType's data source (no platform-side lender directory exists yet to sync from).
-- Adding `signature`/`chain_hash` to the `loan.decision_evaluated` event payload (a platform-side change, not attempted here since no consumer currently needs it).
+- Adding `signature`/`chain_hash` columns to the Decision Receipt DocType itself (the event payload now carries both — this is a connector-repo DocType change, not a platform one).

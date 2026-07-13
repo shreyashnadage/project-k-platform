@@ -48,3 +48,5 @@ always_protected_paths:
     reason: "Data Subject Rights requests (access/erasure/correction/grievance/nomination). Must never be reachable without a verified platform-admin identity."
   - path: /dpdp/consent
     reason: "Consent status lookups reveal a data principal's consent history. Same rationale as /dpdp/rights."
+  - path: /dpdp/audit
+    reason: "Signed decision receipt chains are the platform's audit trail — same sensitivity rationale as /dpdp/rights."

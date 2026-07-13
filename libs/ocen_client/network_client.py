@@ -13,6 +13,7 @@ Mirrors the LoanAgentServiceImpl from the OCEN AuthStarter.
 
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -39,23 +40,47 @@ OCEN_API_VERSION = "v4.0.0alpha"
 CREATE_LOAN_REQUEST_PATH = f"/{OCEN_API_VERSION}/loanApplications/createLoanRequest"
 CREATE_LOAN_RESPONSE_PATH = f"/{OCEN_API_VERSION}/loanApplications/createLoanResponse"
 
+# OcenConfig's own field defaults — duplicated here only for the fail-fast
+# comparison below (can't import a Pydantic field's default value cleanly).
+_DEV_TOKEN_URL = "https://auth.ocen.network/realms/dev/protocol/openid-connect/token"
+_DEV_REGISTRY_URL = "https://dev.ocen.network/service"
+_DEV_HEARTBEAT_URL = "https://analytics-dev.ocen.network/ocen/v4/event"
+
+
+def _fail_fast_on_dev_network_defaults(config: OcenConfig) -> None:
+    """Refuse to submit real loan applications to the OCEN *dev* network by
+    accident. If none of OCEN_TOKEN_URL/OCEN_REGISTRY_BASE_URL/OCEN_HEARTBEAT_URL
+    were set, OcenConfig silently falls back to the dev network — fine in
+    sandbox, dangerous in a real deployment that forgot to configure them."""
+    if os.environ.get("INTEGRATION_MODE", "") == "sandbox":
+        return
+    if (
+        config.token_url == _DEV_TOKEN_URL
+        and config.registry_base_url == _DEV_REGISTRY_URL
+        and config.heartbeat_url == _DEV_HEARTBEAT_URL
+    ):
+        raise RuntimeError(
+            "OCEN_TOKEN_URL/OCEN_REGISTRY_BASE_URL/OCEN_HEARTBEAT_URL are not "
+            "set, and OcenConfig's dev-network defaults would be used outside "
+            "INTEGRATION_MODE=sandbox — real loan applications would silently "
+            "submit to OCEN's dev network. Set these explicitly, or set "
+            "INTEGRATION_MODE=sandbox for local development."
+        )
+
 
 class OcenNetworkClient:
     """Orchestrates OCEN network transactions as a Loan Agent."""
 
     def __init__(self, config: OcenConfig | None = None) -> None:
         self._config = config or OcenConfig()
+        _fail_fast_on_dev_network_defaults(self._config)
         self._token_service = OcenTokenService(
             client_id=self._config.client_id,
             client_secret=self._config.client_secret,
             token_url=self._config.token_url,
         )
-        self._registry = OcenRegistryService(
-            self._token_service, self._config.registry_base_url
-        )
-        self._heartbeat = OcenHeartbeatService(
-            self._token_service, self._config.heartbeat_url
-        )
+        self._registry = OcenRegistryService(self._token_service, self._config.registry_base_url)
+        self._heartbeat = OcenHeartbeatService(self._token_service, self._config.heartbeat_url)
         self._signer = OcenJWSSigner()  # Uses dev keypair; load from config in prod
 
     async def submit_loan_application(
@@ -99,15 +124,19 @@ class OcenNetworkClient:
 
                 await self._emit_heartbeat(
                     HeartbeatEventType.CREATE_LOAN_APPLICATION_REQUEST,
-                    request, 200, "Success", lender.id,
+                    request,
+                    200,
+                    "Success",
+                    lender.id,
                 )
             except Exception as e:
-                logger.error(
-                    "ocen_submit_failed", lender_id=lender.id, error=str(e)
-                )
+                logger.error("ocen_submit_failed", lender_id=lender.id, error=str(e))
                 await self._emit_heartbeat(
                     HeartbeatEventType.CREATE_LOAN_APPLICATION_REQUEST,
-                    request, 500, str(e), lender.id,
+                    request,
+                    500,
+                    str(e),
+                    lender.id,
                 )
 
         return ack_responses
@@ -121,7 +150,9 @@ class OcenNetworkClient:
         """
         await self._emit_heartbeat(
             HeartbeatEventType.CREATE_LOAN_APPLICATIONS_RESPONSE_ACK,
-            response, 200, "Success",
+            response,
+            200,
+            "Success",
             response.metadata.originator_participant_id,
         )
 

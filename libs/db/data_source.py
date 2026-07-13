@@ -46,9 +46,7 @@ class PlatformDataSource:
             loan_rows = loans.scalars().all()
 
             consents = await session.execute(
-                select(ConsentRecord).where(
-                    ConsentRecord.data_principal_id == data_principal_id
-                )
+                select(ConsentRecord).where(ConsentRecord.data_principal_id == data_principal_id)
             )
             consent_rows = consents.scalars().all()
 
@@ -58,7 +56,9 @@ class PlatformDataSource:
                     "name": vendor_row.name if vendor_row else None,
                     "gstin": vendor_row.gstin if vendor_row else None,
                     "udyam_number": vendor_row.udyam_number if vendor_row else None,
-                } if vendor_row else None,
+                }
+                if vendor_row
+                else None,
                 "loan_applications": [
                     {
                         "id": str(la.id),
@@ -131,15 +131,30 @@ class PlatformDataSource:
             }
 
     async def has_legal_hold(
-        self, data_principal_id: str, session=None,
+        self,
+        data_principal_id: str,
+        session=None,
     ) -> bool:
-        """Check if any loan is within RBI 7-year retention window."""
+        """Check if any loan is within the RBI retention window.
+
+        Reads the "loan_application" retention_days from dpdp_config.yaml
+        (same source services/la_orchestrator/activities.py::enforce_retention
+        uses) instead of a hardcoded literal, so the two retention-enforcement
+        code paths can't drift out of sync with each other again.
+        """
         should_close = session is None
         if session is None:
             session = self._session_factory()
 
         try:
-            cutoff = datetime.now(UTC) - timedelta(days=2555)
+            from dpdp_core.config import get_config
+
+            retention_days = next(
+                policy.retention_days
+                for policy in get_config().retention
+                if policy.data_category == "loan_application"
+            )
+            cutoff = datetime.now(UTC) - timedelta(days=retention_days)
             result = await session.execute(
                 select(LoanApplicationRecord.id).where(
                     LoanApplicationRecord.vendor_gstin == data_principal_id,

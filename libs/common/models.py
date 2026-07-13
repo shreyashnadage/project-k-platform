@@ -14,7 +14,56 @@ from uuid import UUID, uuid4
 
 from dpdp_core.classification.field_meta import dpdp_field
 from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTier
+from dpdp_core.config import get_config as _get_dpdp_config
 from pydantic import BaseModel, Field
+
+
+def _retention_days(data_category: str) -> int:
+    """Look up a retention period from dpdp_config.yaml's `retention:` list
+    by data_category, resolved once at import time. This is the single
+    source of truth for every dpdp_field(retention_days=...) call below —
+    edit dpdp_config.yaml, not these call sites, to change a retention period.
+    """
+    for policy in _get_dpdp_config().retention:
+        if policy.data_category == data_category:
+            return int(policy.retention_days)
+    raise KeyError(f"No dpdp_config.yaml retention policy for data_category={data_category!r}")
+
+
+# Module-level constants — resolved once, referenced by every dpdp_field()
+# call across libs/common/models.py, services/borrower_gateway/models.py,
+# and services/borrower_gateway/ops_models.py.
+RETENTION_LOAN_APPLICATION = _retention_days("loan_application")
+RETENTION_VENDOR_CONTACT = _retention_days("vendor_contact")
+
+
+def _required_consent_purposes() -> list[str]:
+    """dpdp_config.yaml's consent.required_purposes list.
+
+    Read directly from YAML (not via dpdp_core.config.get_config()) because
+    the vendored dpdp-core package's DPDPConfig schema doesn't map the
+    `consent:` section at all — a pre-existing gap in that dependency, not
+    something this platform repo can extend. This is the single source of
+    truth for every "purposes the platform requires consent for" check —
+    previously re-typed as a literal list in 5 separate call sites.
+    """
+    import os
+
+    import yaml
+
+    config_path = os.environ.get("DPDP_CONFIG_PATH", "dpdp_config.yaml")
+    try:
+        with open(config_path) as f:
+            raw = yaml.safe_load(f) or {}
+        purposes = raw.get("consent", {}).get("required_purposes")
+        if purposes:
+            return list(purposes)
+    except FileNotFoundError:
+        pass
+    return ["loan_origination", "kind1_attestation"]
+
+
+REQUIRED_CONSENT_PURPOSES = _required_consent_purposes()
 
 # ─── Enums ──────────────────────────────────────────────────
 
@@ -82,7 +131,7 @@ class GSTIN(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
         pattern=r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$",
@@ -97,7 +146,7 @@ class AnchorProfile(BaseModel):
         category=DPDPCategory.NAME,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=...,
     )
     gstin: GSTIN
@@ -115,7 +164,7 @@ class VendorProfile(BaseModel):
         category=DPDPCategory.NAME,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.OPS_MANAGEMENT],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=...,
     )
     gstin: GSTIN
@@ -123,7 +172,7 @@ class VendorProfile(BaseModel):
         category=DPDPCategory.GOVERNMENT_ID,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         default=None,
     )
     udyam_category: UdyamCategory | None = None
@@ -142,7 +191,7 @@ class Invoice(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.KIND1_ATTESTATION, DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=64,
         max_length=64,
         description="Invoice Reference Number — 64-char SHA-256 hash",
@@ -223,7 +272,7 @@ class DecisionReceipt(BaseModel):
     outcome: DecisionOutcome
     ruleset_hash: str = Field(..., description="SHA-256 of the canonical JDM ruleset JSON")
     input_hash: str = Field(..., description="SHA-256 of the canonical input JSON")
-    output: dict[str, Any] = Field(default_factory=dict)
+    output: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=dict)
     engine_version: str = Field(..., description="GoRules Zen engine version")
     signature: str | None = Field(None, description="KMS/HSM signature over the receipt")
     chain_hash: str | None = Field(None, description="h_n = SHA-256(receipt ‖ h_{n-1})")

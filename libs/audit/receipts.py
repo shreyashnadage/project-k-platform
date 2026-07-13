@@ -55,26 +55,64 @@ class ReceiptSigner:
         receipt = signer.create_receipt(...)
     """
 
-    def __init__(self, signing_key: bytes, mode: str = "hmac"):
+    def __init__(
+        self,
+        signing_key: bytes | None = None,
+        mode: str = "hmac",
+        kms_key_id: str | None = None,
+    ):
         self._key = signing_key
         self._mode = mode
+        self._kms_key_id = kms_key_id
+        self._kms_client: Any = None  # lazy — only imports boto3 if mode="kms"
 
     @classmethod
     def from_env(cls) -> ReceiptSigner:
         """Load signing config from environment.
-        TODO: In production, initialise a KMS client here."""
+
+        Picks KMS mode automatically once AWS_KMS_KEY_ID is set — until then,
+        falls back to a local HMAC key. This is the only switch needed to move
+        to KMS later; sign()'s KMS branch just needs boto3 wired in (see below).
+        """
         import os
+
+        kms_key_id = os.environ.get("AWS_KMS_KEY_ID")
+        if kms_key_id:
+            return cls(mode="kms", kms_key_id=kms_key_id)
 
         key = os.environ.get("RECEIPT_SIGNING_KEY", "dev-signing-key-do-not-use-in-prod")
         return cls(signing_key=key.encode(), mode="hmac")
+
+    def _get_kms_client(self) -> Any:
+        if self._kms_client is None:
+            import boto3
+
+            self._kms_client = boto3.client("kms")
+        return self._kms_client
 
     def sign(self, data: bytes) -> str:
         """Sign bytes and return hex signature."""
         import hmac as hmac_mod
 
         if self._mode == "hmac":
+            assert self._key is not None, "hmac mode requires a signing_key"
             return hmac_mod.new(self._key, data, hashlib.sha256).hexdigest()
-        # TODO: KMS mode — call boto3 kms.sign()
+        if self._mode == "kms":
+            # Not yet implemented — shape of the real call, for when it's needed:
+            #   response = self._get_kms_client().sign(
+            #       KeyId=self._kms_key_id,
+            #       Message=data,
+            #       MessageType="RAW",
+            #       SigningAlgorithm="RSASSA_PKCS1_V1_5_SHA_256",
+            #   )
+            #   return response["Signature"].hex()
+            # Also needs a verify() counterpart on ChainVerifier for signature
+            # (not just chain_hash) checks once this is live.
+            raise NotImplementedError(
+                "KMS signing mode is not yet implemented — see the commented call "
+                "shape above. Requires 'boto3' as a dependency and a real "
+                "AWS_KMS_KEY_ID with kms:Sign permission."
+            )
         raise NotImplementedError(f"Signing mode {self._mode} not implemented")
 
     def create_receipt(
@@ -84,7 +122,7 @@ class ReceiptSigner:
         outcome: DecisionOutcome,
         ruleset_hash: str,
         rule_input: dict[str, Any],
-        rule_output: dict[str, Any],
+        rule_output: dict[str, Any] | list[dict[str, Any]],
         engine_version: str,
         previous_chain_hash: str | None = None,
     ) -> DecisionReceipt:

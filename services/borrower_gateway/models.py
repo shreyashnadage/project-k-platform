@@ -10,6 +10,8 @@ from dpdp_core.classification.field_meta import dpdp_field
 from dpdp_core.classification.taxonomy import DPDPCategory, DPDPPurpose, DPDPTier
 from pydantic import BaseModel, Field
 
+from libs.common.models import RETENTION_LOAN_APPLICATION
+
 
 class LoanApplicationRequest(BaseModel):
     """Request from borrower (vendor) to initiate a loan application."""
@@ -19,7 +21,7 @@ class LoanApplicationRequest(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )
@@ -27,7 +29,7 @@ class LoanApplicationRequest(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )
@@ -81,7 +83,7 @@ class InvoiceCapturedRequest(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.KIND1_ATTESTATION, DPDPPurpose.LOAN_ORIGINATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=64,
         max_length=64,
     )
@@ -90,7 +92,7 @@ class InvoiceCapturedRequest(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )
@@ -98,7 +100,7 @@ class InvoiceCapturedRequest(BaseModel):
         category=DPDPCategory.FINANCIAL_IDENTIFIER,
         tier=DPDPTier.STANDARD,
         purposes=[DPDPPurpose.LOAN_ORIGINATION, DPDPPurpose.KIND1_ATTESTATION],
-        retention_days=2555,
+        retention_days=RETENTION_LOAN_APPLICATION,
         min_length=15,
         max_length=15,
     )

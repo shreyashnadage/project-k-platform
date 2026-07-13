@@ -22,9 +22,17 @@ from typing import Any
 
 @dataclass
 class EvaluationResult:
-    """Result of a rule evaluation, ready for receipt creation."""
+    """Result of a rule evaluation, ready for receipt creation.
 
-    output: dict[str, Any]
+    `output`'s shape depends on the ruleset's hit policy: "first"/"collect"
+    with a single output field yields a dict; "collect" with multiple named
+    output fields yields a list of per-matched-row dicts (verified against
+    the actual GoRules zen-engine Python bindings, not assumed) — e.g.
+    rules/d2-derived-flags.json and rules/d3-lender-prescreen.json both
+    return list[dict] since each has multiple named outputs.
+    """
+
+    output: dict[str, Any] | list[dict[str, Any]]
     ruleset_hash: str
     engine_version: str
     ruleset_name: str

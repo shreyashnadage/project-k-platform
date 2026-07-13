@@ -72,7 +72,7 @@ class DecisionReceiptRecord(Base):
     outcome: Mapped[str] = mapped_column(String(20), nullable=False)
     ruleset_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    output_data: Mapped[dict | None] = mapped_column(JSONB)
+    output_data: Mapped[dict | list | None] = mapped_column(JSONB)
     engine_version: Mapped[str] = mapped_column(String(20), default="zen-1.0")
     signature: Mapped[str | None] = mapped_column(Text)
     chain_hash: Mapped[str | None] = mapped_column(String(64))
@@ -80,9 +80,7 @@ class DecisionReceiptRecord(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("ix_receipt_loan_gate", "loan_application_id", "gate"),
-    )
+    __table_args__ = (Index("ix_receipt_loan_gate", "loan_application_id", "gate"),)
 
 
 class AnchorRecord(Base):
@@ -123,6 +121,14 @@ class VendorRecord(Base):
     udyam_number_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     udyam_number_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    # Vendor invite/activation tracking (migration 006)
+    phone: Mapped[str | None] = mapped_column(String(13), nullable=True)
+    phone_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    phone_idx: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    invite_token: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    invited_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
 
 class IdempotencyRecord(Base):
     __tablename__ = "idempotency_keys"
@@ -159,9 +165,7 @@ class ConsentRecord(Base):
     metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    __table_args__ = (
-        Index("ix_consent_principal_purpose", "data_principal_id", "purpose"),
-    )
+    __table_args__ = (Index("ix_consent_principal_purpose", "data_principal_id", "purpose"),)
 
 
 class DSRRequestRecord(Base):

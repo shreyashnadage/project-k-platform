@@ -149,6 +149,8 @@ def loan_decision_evaluated(
     ruleset_hash: str,
     input_hash: str,
     receipt_id: UUID,
+    signature: str | None = None,
+    chain_hash: str | None = None,
     **meta_kwargs: Any,
 ) -> TradeEvent:
     return TradeEvent(
@@ -162,6 +164,8 @@ def loan_decision_evaluated(
             "ruleset_hash": ruleset_hash,
             "input_hash": input_hash,
             "receipt_id": str(receipt_id),
+            "signature": signature,
+            "chain_hash": chain_hash,
         },
         metadata=EventMetadata(**meta_kwargs),
     )

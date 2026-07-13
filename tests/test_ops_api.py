@@ -188,3 +188,73 @@ class TestAnchorOnboard:
         data = resp.json()
         assert data["status"] == "onboarded"
         assert "anchor_id" in data
+
+
+@pytest.mark.integration
+class TestVendorPersistenceAgainstRealPostgres:
+    """Requires `make up`. Proves the GATEWAY_USE_DB=true code path in
+    ops_api.py actually persists and enforces uniqueness/token validity —
+    the previous implementation silently created a fresh vendor_id on every
+    call, including for duplicate GSTINs and stale/reused invite tokens."""
+
+    @pytest.fixture(autouse=True)
+    def _use_real_db(self, monkeypatch):
+        monkeypatch.setenv("GATEWAY_USE_DB", "true")
+
+    def test_duplicate_gstin_self_registration_is_rejected(self, client):
+        payload = {
+            "name": "Duplicate GSTIN Vendor",
+            "gstin": "29AADCB2230M1ZQ",
+            "phone": "9876500001",
+        }
+        first = client.post("/vendors/register", json=payload)
+        assert first.status_code == 200
+
+        second = client.post("/vendors/register", json=payload)
+        assert second.status_code == 409, (
+            "A second registration with the same GSTIN must be rejected, "
+            "not silently create a second vendor_id"
+        )
+
+    def test_duplicate_gstin_invite_is_rejected(self, client, ops_headers):
+        payload = {
+            "name": "Duplicate Invite Vendor",
+            "gstin": "29AADCB2230M1ZR",
+            "phone": "9876500002",
+            "invited_by": "ops@company.com",
+        }
+        first = client.post("/ops/vendor/invite", json=payload, headers=ops_headers)
+        assert first.status_code == 200
+
+        second = client.post("/ops/vendor/invite", json=payload, headers=ops_headers)
+        assert second.status_code == 409
+
+    def test_activate_with_unknown_token_returns_404(self, client):
+        resp = client.post(
+            "/vendors/activate",
+            json={"invite_token": "this-token-was-never-issued"},
+        )
+        assert resp.status_code == 404
+
+    def test_activate_twice_with_same_token_fails_second_time(self, client, ops_headers):
+        invite = client.post(
+            "/ops/vendor/invite",
+            json={
+                "name": "Reactivation Vendor",
+                "gstin": "29AADCB2230M1ZS",
+                "phone": "9876500003",
+                "invited_by": "ops@company.com",
+            },
+            headers=ops_headers,
+        )
+        assert invite.status_code == 200
+        token = invite.json()["invite_token"]
+
+        first_activation = client.post("/vendors/activate", json={"invite_token": token})
+        assert first_activation.status_code == 200
+
+        second_activation = client.post("/vendors/activate", json={"invite_token": token})
+        assert second_activation.status_code in (404, 422), (
+            "A one-time invite token must not activate a second time — "
+            "the token is cleared on first use"
+        )

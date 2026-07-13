@@ -5,6 +5,7 @@ Auth: Bearer API key validated via middleware.
 
 from __future__ import annotations
 
+import inspect
 import os
 import secrets
 import uuid
@@ -38,7 +39,8 @@ logger = structlog.get_logger()
 ops_router = APIRouter(prefix="/ops", tags=["ops"])
 vendors_router = APIRouter(prefix="/vendors", tags=["vendors"])
 
-OPS_API_KEY = os.environ.get("OPS_API_KEY", "dev-ops-key-change-in-production")
+_DEFAULT_OPS_API_KEY = "dev-ops-key-change-in-production"
+OPS_API_KEY = os.environ.get("OPS_API_KEY", _DEFAULT_OPS_API_KEY)
 PLATFORM_BASE_URL = os.environ.get("PLATFORM_BASE_URL", "http://localhost:8000")
 
 # Transitional shared-secret auth for /ops/* — replaced by real per-user
@@ -46,7 +48,22 @@ PLATFORM_BASE_URL = os.environ.get("PLATFORM_BASE_URL", "http://localhost:8000")
 # RBAC/role-UIs plan). Defaults to enabled so existing ops workflows keep
 # working; flip to "false" once every caller has migrated to a verified
 # per-user Bearer token.
-OPS_API_KEY_FALLBACK_ENABLED = os.environ.get("OPS_API_KEY_FALLBACK_ENABLED", "true").lower() == "true"
+OPS_API_KEY_FALLBACK_ENABLED = (
+    os.environ.get("OPS_API_KEY_FALLBACK_ENABLED", "true").lower() == "true"
+)
+
+if (
+    OPS_API_KEY_FALLBACK_ENABLED
+    and OPS_API_KEY == _DEFAULT_OPS_API_KEY
+    and os.environ.get("INTEGRATION_MODE", "") != "sandbox"
+):
+    raise RuntimeError(
+        "OPS_API_KEY is not set, and the known dev-only default "
+        f"({_DEFAULT_OPS_API_KEY!r}) would be accepted as a valid Bearer "
+        "credential for every /ops/* endpoint outside INTEGRATION_MODE=sandbox. "
+        "Set OPS_API_KEY explicitly, set OPS_API_KEY_FALLBACK_ENABLED=false, "
+        "or set INTEGRATION_MODE=sandbox for local development."
+    )
 
 
 def _emit_event(
@@ -176,9 +193,7 @@ async def ops_release(
             message="Application released from hold.",
         )
     except Exception as e:
-        logger.error(
-            "ops_release_failed", error=str(e), application_id=str(request.application_id)
-        )
+        logger.error("ops_release_failed", error=str(e), application_id=str(request.application_id))
         raise HTTPException(status_code=422, detail=f"Cannot release application: {e}") from e
 
 
@@ -284,10 +299,13 @@ async def get_application_detail(
     service = get_gateway_service()
 
     try:
-        status = service.get_status(application_id)
+        result = service.get_status(application_id)
+        status = await result if inspect.isawaitable(result) else result
         return OpsApplicationDetail(
             application_id=status.application_id,
-            vendor_gstin="",
+            vendor_gstin=status.vendor_gstin or "",
+            # anchor_gstin isn't tracked on LoanApplicationStatus at all yet —
+            # still a known gap, not something this fix addresses.
             anchor_gstin="",
             amount_requested=status.amount_requested,
             status=status.status,
@@ -303,15 +321,58 @@ async def get_application_detail(
 # ─── Vendor Onboarding (Ops-driven) ────────────────────────────
 
 
+def _use_db() -> bool:
+    """Mirrors services/borrower_gateway/service.py's GATEWAY_USE_DB toggle —
+    same flag, same default (off), so both the loan-application path and
+    the vendor/anchor onboarding path switch to real persistence together."""
+    return os.environ.get("GATEWAY_USE_DB", "false").lower() == "true"
+
+
 @ops_router.post("/vendor/invite", response_model=VendorInviteResponse)
 async def invite_vendor(
     request: VendorInviteRequest,
     _: str = Depends(verify_ops_api_key),
 ) -> VendorInviteResponse:
     """Create a pending vendor record and generate invite token."""
-    vendor_id = uuid.uuid4()
     invite_token = secrets.token_urlsafe(32)
     invite_link = f"{PLATFORM_BASE_URL}/invite/{invite_token}"
+
+    if _use_db():
+        from sqlalchemy import select
+
+        from libs.db.engine import async_session
+        from libs.db.models import VendorRecord
+
+        async with async_session() as session:
+            existing = (
+                await session.execute(
+                    select(VendorRecord).where(VendorRecord.gstin == request.gstin)
+                )
+            ).scalar_one_or_none()
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"A vendor with GSTIN {request.gstin} already exists "
+                        f"(status={existing.status})."
+                    ),
+                )
+
+            vendor_id = uuid.uuid4()
+            session.add(
+                VendorRecord(
+                    id=vendor_id,
+                    name=request.name,
+                    gstin=request.gstin,
+                    phone=request.phone,
+                    invite_token=invite_token,
+                    status="pending",
+                    invited_by=request.invited_by,
+                )
+            )
+            await session.commit()
+    else:
+        vendor_id = uuid.uuid4()
 
     logger.info(
         "vendor_invited",
@@ -344,7 +405,37 @@ async def onboard_anchor(
     _: str = Depends(verify_ops_api_key),
 ) -> AnchorOnboardResponse:
     """Create an anchor record in the platform."""
-    anchor_id = uuid.uuid4()
+    if _use_db():
+        from sqlalchemy import select
+
+        from libs.db.engine import async_session
+        from libs.db.models import AnchorRecord
+
+        async with async_session() as session:
+            existing = (
+                await session.execute(
+                    select(AnchorRecord).where(AnchorRecord.gstin == request.gstin)
+                )
+            ).scalar_one_or_none()
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"An anchor with GSTIN {request.gstin} already exists.",
+                )
+
+            anchor_id = uuid.uuid4()
+            session.add(
+                AnchorRecord(
+                    id=anchor_id,
+                    name=request.name,
+                    gstin=request.gstin,
+                    sector=request.sector,
+                    region=request.region,
+                )
+            )
+            await session.commit()
+    else:
+        anchor_id = uuid.uuid4()
 
     logger.info(
         "anchor_onboarded",
@@ -352,6 +443,14 @@ async def onboard_anchor(
         gstin=request.gstin,
         name=request.name,
         onboarded_by=request.onboarded_by,
+    )
+
+    _emit_event(
+        EventType.ANCHOR_ONBOARDED,
+        entity_id=anchor_id,
+        entity_type="anchor",
+        payload={"gstin": request.gstin, "name": request.name},
+        actor_id=request.onboarded_by,
     )
 
     return AnchorOnboardResponse(
@@ -406,7 +505,6 @@ async def register_vendor(request: VendorRegisterRequest) -> VendorRegisterRespo
 
     If udyam_number is provided, auto-verifies and populates enterprise data.
     """
-    vendor_id = uuid.uuid4()
     udyam_data: dict = {}
 
     if request.udyam_number:
@@ -427,6 +525,43 @@ async def register_vendor(request: VendorRegisterRequest) -> VendorRegisterRespo
                 "nic_codes": result.nic_codes,
                 "owner_name": result.owner_name,
             }
+
+    if _use_db():
+        from sqlalchemy import select
+
+        from libs.db.engine import async_session
+        from libs.db.models import VendorRecord
+
+        async with async_session() as session:
+            existing = (
+                await session.execute(
+                    select(VendorRecord).where(VendorRecord.gstin == request.gstin)
+                )
+            ).scalar_one_or_none()
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"A vendor with GSTIN {request.gstin} already exists "
+                        f"(status={existing.status})."
+                    ),
+                )
+
+            vendor_id = uuid.uuid4()
+            session.add(
+                VendorRecord(
+                    id=vendor_id,
+                    name=request.name,
+                    gstin=request.gstin,
+                    phone=request.phone,
+                    udyam_number=request.udyam_number,
+                    udyam_category=udyam_data.get("udyam_category") or request.udyam_category,
+                    status="active",
+                )
+            )
+            await session.commit()
+    else:
+        vendor_id = uuid.uuid4()
 
     logger.info(
         "vendor_self_registered",
@@ -458,7 +593,37 @@ async def register_vendor(request: VendorRegisterRequest) -> VendorRegisterRespo
 @vendors_router.post("/activate", response_model=VendorRegisterResponse)
 async def activate_vendor(request: VendorActivateRequest) -> VendorRegisterResponse:
     """Complete an invited vendor's registration (from PWA invite flow)."""
-    vendor_id = uuid.uuid4()
+    if _use_db():
+        from sqlalchemy import select
+
+        from libs.db.engine import async_session
+        from libs.db.models import VendorRecord
+
+        async with async_session() as session:
+            vendor = (
+                await session.execute(
+                    select(VendorRecord).where(VendorRecord.invite_token == request.invite_token)
+                )
+            ).scalar_one_or_none()
+            if vendor is None:
+                raise HTTPException(status_code=404, detail="Invite token not found or expired.")
+            if vendor.status == "active":
+                raise HTTPException(
+                    status_code=422, detail="This invite has already been activated."
+                )
+
+            vendor.status = "active"
+            vendor.invite_token = None  # one-time use
+            if request.name:
+                vendor.name = request.name
+            if request.udyam_number:
+                vendor.udyam_number = request.udyam_number
+            if request.udyam_category:
+                vendor.udyam_category = request.udyam_category
+            await session.commit()
+            vendor_id = vendor.id
+    else:
+        vendor_id = uuid.uuid4()
 
     logger.info(
         "vendor_activated",

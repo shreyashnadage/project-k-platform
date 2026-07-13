@@ -40,6 +40,7 @@ class DerivedAttributes(BaseModel):
     revenue_concentration: Decimal = Field(..., description="% of revenue from this anchor")
     dilution_rate: Decimal = Field(..., description="Invoice adjustment rate")
     anchor_payment_history_score: Decimal = Field(..., description="0-100 anchor reliability")
+    anchor_avg_dpd: int = Field(..., description="Anchor's average days payment delay")
     gst_compliance_score: Decimal = Field(..., description="0-100 GST filing regularity")
     vintage_months: int = Field(..., description="Relationship duration in months")
 

@@ -12,21 +12,25 @@ Each activity MUST be idempotent — Temporal may retry on failure.
 
 from __future__ import annotations
 
-import hashlib
 import os
 import threading
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
-import orjson
 import structlog
+from sqlalchemy import select
 from temporalio import activity
 
+from libs.audit.receipts import ReceiptSigner, content_hash
 from libs.common.event_producer import EventProducer
 from libs.common.events import loan_decision_evaluated
+from libs.common.models import REQUIRED_CONSENT_PURPOSES, DecisionGate, DecisionOutcome
+from libs.db.models import DecisionReceiptRecord
 from libs.integrations.factory import (
     get_aa_client,
     get_consent_client,
+    get_db_session_factory,
     get_gst_client,
     get_ocen_client,
     get_ocen_network_client,
@@ -46,6 +50,8 @@ _zen_engine: ZenDecisionEngine | None = None
 _zen_lock = threading.Lock()
 _event_producer: EventProducer | None = None
 _producer_lock = threading.Lock()
+_receipt_signer: ReceiptSigner | None = None
+_signer_lock = threading.Lock()
 
 
 def get_event_producer() -> EventProducer:
@@ -67,6 +73,84 @@ def get_zen_engine() -> ZenDecisionEngine:
     return _zen_engine
 
 
+def get_receipt_signer() -> ReceiptSigner:
+    global _receipt_signer
+    if _receipt_signer is None:
+        with _signer_lock:
+            if _receipt_signer is None:
+                _receipt_signer = ReceiptSigner.from_env()
+    return _receipt_signer
+
+
+async def _sign_and_persist_receipt(
+    loan_application_id: UUID,
+    gate: str,
+    outcome: str,
+    ruleset_hash: str,
+    rule_input: dict,
+    rule_output: dict[str, Any] | list[dict[str, Any]],
+    engine_version: str,
+) -> tuple[UUID, str | None, str | None]:
+    """Sign a decision receipt, chain it to the prior receipt for this loan
+    (if any), and persist it. Returns (receipt_id, signature, chain_hash).
+
+    Persistence failures are logged but never raise — the audit trail
+    shouldn't be a source of loan-workflow outages. Signing itself is
+    in-memory only and always succeeds.
+    """
+    log = logger.bind(loan_application_id=str(loan_application_id), gate=gate)
+    signer = get_receipt_signer()
+
+    previous_chain_hash: str | None = None
+    session_factory = get_db_session_factory()
+    try:
+        async with session_factory() as session:
+            result = await session.execute(
+                select(DecisionReceiptRecord.chain_hash)
+                .where(DecisionReceiptRecord.loan_application_id == loan_application_id)
+                .order_by(DecisionReceiptRecord.evaluated_at.desc())
+                .limit(1)
+            )
+            row = result.scalar_one_or_none()
+            previous_chain_hash = row
+    except Exception as e:
+        log.warning("receipt_chain_lookup_failed", error=str(e))
+
+    receipt = signer.create_receipt(
+        loan_application_id=loan_application_id,
+        gate=DecisionGate(gate),
+        outcome=DecisionOutcome(outcome),
+        ruleset_hash=ruleset_hash,
+        rule_input=rule_input,
+        rule_output=rule_output,
+        engine_version=engine_version,
+        previous_chain_hash=previous_chain_hash,
+    )
+
+    try:
+        async with session_factory() as session:
+            session.add(
+                DecisionReceiptRecord(
+                    id=receipt.id,
+                    loan_application_id=receipt.loan_application_id,
+                    gate=receipt.gate.value,
+                    outcome=receipt.outcome.value,
+                    ruleset_hash=receipt.ruleset_hash,
+                    input_hash=receipt.input_hash,
+                    output_data=receipt.output,
+                    engine_version=receipt.engine_version,
+                    signature=receipt.signature,
+                    chain_hash=receipt.chain_hash,
+                    evaluated_at=receipt.evaluated_at,
+                )
+            )
+            await session.commit()
+    except Exception as e:
+        log.error("receipt_persist_failed", error=str(e))
+
+    return receipt.id, receipt.signature, receipt.chain_hash
+
+
 # ─── Activity Inputs (serializable dataclasses) ─────────────
 
 
@@ -86,7 +170,7 @@ class CheckDPDPConsentInput:
 
     def __post_init__(self) -> None:
         if self.purposes is None:
-            self.purposes = ["loan_origination", "kind1_attestation"]
+            self.purposes = list(REQUIRED_CONSENT_PURPOSES)
 
 
 @dataclass
@@ -109,6 +193,31 @@ class SubmitToLenderInput:
 # ─── Activities ─────────────────────────────────────────────
 
 
+def _normalize_rule_output(
+    ruleset_name: str, output: dict[str, Any] | list[dict[str, Any]]
+) -> dict:
+    """Normalize Zen Engine output to a uniform dict regardless of hit-policy shape.
+
+    D0/D1 use hitPolicy "first" with singular named outputs -> already a dict
+    with "outcome"/"reason". D2 (flags) and D3 (lender prescreen) use
+    "collect" with multiple named outputs -> list[dict], one row per matched
+    rule (verified empirically against the real zen-engine bindings — see
+    EvaluationResult.output's docstring). D2 is informational-only (the
+    workflow always proceeds past it); D3's outcome is "pass" iff at least
+    one lender matched, and each row carries "matched_lender_id" (singular).
+    """
+    if isinstance(output, dict):
+        return output
+    if ruleset_name == "d3-lender-prescreen":
+        matched = [row["matched_lender_id"] for row in output if "matched_lender_id" in row]
+        return {
+            "outcome": "pass" if matched else "fail",
+            "reason": "lenders_matched" if matched else "no_lender_match",
+            "matched_lender_ids": matched,
+        }
+    return {"outcome": "pass", "reason": "evaluated", "matched_lender_ids": []}
+
+
 @activity.defn(name="evaluate_decision")
 async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
     """Evaluate a decision gate using the Zen Engine."""
@@ -121,18 +230,30 @@ async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
 
     if input.context and input.ruleset_name in get_zen_engine().loaded_rulesets:
         result = get_zen_engine().evaluate(input.ruleset_name, input.context)
-        context_bytes = orjson.dumps(input.context, option=orjson.OPT_SORT_KEYS)
-        input_hash = hashlib.sha256(context_bytes).hexdigest()[:16]
-        receipt_id = f"receipt-{input.loan_application_id}-{input.gate}"
+        input_hash = content_hash(input.context)
+        normalized = _normalize_rule_output(input.ruleset_name, result.output)
+        outcome = normalized.get("outcome", "pass")
+
+        receipt_id, signature, chain_hash = await _sign_and_persist_receipt(
+            loan_application_id=UUID(input.loan_application_id),
+            gate=input.gate,
+            outcome=outcome,
+            ruleset_hash=result.ruleset_hash,
+            rule_input=input.context,
+            rule_output=result.output,
+            engine_version=result.engine_version,
+        )
 
         try:
             event = loan_decision_evaluated(
                 loan_application_id=UUID(input.loan_application_id),
                 gate=input.gate,
-                outcome=result.output.get("outcome", "pass"),
+                outcome=outcome,
                 ruleset_hash=result.ruleset_hash,
                 input_hash=input_hash,
-                receipt_id=UUID(int=hash(receipt_id) % (2**128)),
+                receipt_id=receipt_id,
+                signature=signature,
+                chain_hash=chain_hash,
                 workflow_id=activity.info().workflow_id,
             )
             get_event_producer().publish(event)
@@ -142,19 +263,19 @@ async def evaluate_decision(input: EvaluateDecisionInput) -> dict:
         log.info(
             "decision_receipt_emitted",
             gate=input.gate,
-            outcome=result.output.get("outcome", "pass"),
+            outcome=outcome,
             ruleset_hash=result.ruleset_hash,
             input_hash=input_hash,
-            receipt_id=receipt_id,
+            receipt_id=str(receipt_id),
         )
 
         return {
-            "outcome": result.output.get("outcome", "pass"),
-            "reason": result.output.get("reason", "evaluated"),
+            "outcome": outcome,
+            "reason": normalized.get("reason", "evaluated"),
             "ruleset_hash": result.ruleset_hash,
             "input_hash": input_hash,
-            "receipt_id": receipt_id,
-            "matched_lender_ids": result.output.get("matched_lender_ids", []),
+            "receipt_id": str(receipt_id),
+            "matched_lender_ids": normalized.get("matched_lender_ids", []),
         }
 
     return {
@@ -179,7 +300,7 @@ async def check_dpdp_consent(input: CheckDPDPConsentInput) -> dict:
     consent_client = get_consent_client()
     result = await consent_client.check_consent(
         data_principal_id=input.data_principal_id,
-        purposes=input.purposes or ["loan_origination", "kind1_attestation"],
+        purposes=input.purposes or REQUIRED_CONSENT_PURPOSES,
     )
 
     log.info("dpdp_consent_result", allowed=result.allowed, reason=result.reason)
@@ -343,11 +464,13 @@ async def enforce_retention(input: RetentionInput) -> dict:
         )
 
         if input.dry_run:
-            results.append({
-                "category": category,
-                "action": "dry_run",
-                "records_affected": 0,
-            })
+            results.append(
+                {
+                    "category": category,
+                    "action": "dry_run",
+                    "records_affected": 0,
+                }
+            )
             continue
 
         from libs.db.retention_handlers import get_retention_handler
@@ -355,17 +478,21 @@ async def enforce_retention(input: RetentionInput) -> dict:
         handler = get_retention_handler(category)
         if handler:
             count = await handler.enforce(days)
-            results.append({
-                "category": category,
-                "action": "enforced",
-                "records_affected": count,
-            })
+            results.append(
+                {
+                    "category": category,
+                    "action": "enforced",
+                    "records_affected": count,
+                }
+            )
         else:
-            results.append({
-                "category": category,
-                "action": "no_handler",
-                "records_affected": 0,
-            })
+            results.append(
+                {
+                    "category": category,
+                    "action": "no_handler",
+                    "records_affected": 0,
+                }
+            )
 
     log.info("retention_enforcement_complete", policies_processed=len(results))
     return {"policies_processed": len(results), "results": results}

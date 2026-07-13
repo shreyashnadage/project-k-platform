@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from temporalio.client import Client as TemporalClient
 
+from libs.common.models import REQUIRED_CONSENT_PURPOSES
+
 logger = structlog.get_logger()
 
 dpdp_router = APIRouter(prefix="/dpdp", tags=["dpdp"])
@@ -59,6 +61,24 @@ class DSRStatusResponse(BaseModel):
 class ConsentStatusResponse(BaseModel):
     data_principal_id: str
     consents: list[dict]
+
+
+class DecisionReceiptEntry(BaseModel):
+    id: str
+    gate: str
+    outcome: str
+    ruleset_hash: str
+    input_hash: str
+    engine_version: str
+    signature: str | None
+    chain_hash: str | None
+    evaluated_at: str
+
+
+class AuditReceiptChainResponse(BaseModel):
+    loan_application_id: str
+    receipts: list[DecisionReceiptEntry]
+    chain_verified: bool
 
 
 # ─── DSR Endpoints ────────────────────────────────────────────
@@ -151,16 +171,92 @@ async def get_consent_status(data_principal_id: str) -> ConsentStatusResponse:
     consent_client = get_consent_client()
     result = await consent_client.check_consent(
         data_principal_id=data_principal_id,
-        purposes=["loan_origination", "kind1_attestation"],
+        purposes=REQUIRED_CONSENT_PURPOSES,
     )
 
     return ConsentStatusResponse(
         data_principal_id=data_principal_id,
         consents=[
             {
-                "purposes": ["loan_origination", "kind1_attestation"],
+                "purposes": REQUIRED_CONSENT_PURPOSES,
                 "allowed": result.allowed,
                 "reason": result.reason,
             }
         ],
+    )
+
+
+# ─── Audit Endpoints ──────────────────────────────────────────
+
+
+@dpdp_router.get("/audit/receipts/{loan_application_id}", response_model=AuditReceiptChainResponse)
+async def get_receipt_chain(loan_application_id: uuid.UUID) -> AuditReceiptChainResponse:
+    """Signed decision receipt chain for a loan application — the audit
+    trail an admin/auditor uses to verify every D0-D3 decision actually
+    happened, wasn't tampered with, and links to the one before it.
+
+    This is the only way to see this today besides a raw DB query —
+    services/la_orchestrator/activities.py::evaluate_decision creates and
+    signs these receipts, but nothing surfaced them until now.
+    """
+    from sqlalchemy import select
+
+    from libs.audit.receipts import ChainVerifier
+    from libs.common.models import DecisionGate, DecisionOutcome, DecisionReceipt
+    from libs.db.engine import async_session
+    from libs.db.models import DecisionReceiptRecord
+
+    async with async_session() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(DecisionReceiptRecord)
+                    .where(DecisionReceiptRecord.loan_application_id == loan_application_id)
+                    .order_by(DecisionReceiptRecord.evaluated_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No decision receipts found for loan application {loan_application_id}.",
+        )
+
+    receipts = [
+        DecisionReceipt(
+            id=row.id,
+            loan_application_id=row.loan_application_id,
+            gate=DecisionGate(row.gate),
+            outcome=DecisionOutcome(row.outcome),
+            ruleset_hash=row.ruleset_hash,
+            input_hash=row.input_hash,
+            output=row.output_data or {},
+            engine_version=row.engine_version,
+            signature=row.signature,
+            chain_hash=row.chain_hash,
+            evaluated_at=row.evaluated_at,
+        )
+        for row in rows
+    ]
+
+    return AuditReceiptChainResponse(
+        loan_application_id=str(loan_application_id),
+        receipts=[
+            DecisionReceiptEntry(
+                id=str(r.id),
+                gate=r.gate.value,
+                outcome=r.outcome.value,
+                ruleset_hash=r.ruleset_hash,
+                input_hash=r.input_hash,
+                engine_version=r.engine_version,
+                signature=r.signature,
+                chain_hash=r.chain_hash,
+                evaluated_at=r.evaluated_at.isoformat(),
+            )
+            for r in receipts
+        ],
+        chain_verified=ChainVerifier.verify_chain(receipts),
     )
